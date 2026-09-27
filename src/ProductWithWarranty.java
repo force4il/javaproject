@@ -2,7 +2,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.ArrayList;
 
-public class ProductWithWarranty extends Product implements Editable {
+public class ProductWithWarranty extends Product {
 
     private LocalDate startOfWarranty;
     private int warrantyMonths;
@@ -31,6 +31,7 @@ public class ProductWithWarranty extends Product implements Editable {
     public void setStartOfWarranty(LocalDate startOfWarranty) {
         this.startOfWarranty = startOfWarranty;
     }
+
     public void setWarrantyMonths(int warrantyMonths) {
         this.warrantyMonths = warrantyMonths;
     }
