@@ -16,19 +16,17 @@ import javafx.scene.layout.HBox;
 import javafx.stage.Window;
 
 import java.time.LocalDate;
+import java.util.List;
 
 import model.Product;
 import model.ProductWithWarranty;
 
-/**
- * Диалог добавления/редактирования товара.
- * При редактировании тип изменить нельзя (read-only логика применяется к DiscontinuedProduct,
- * он в этом диалоге вообще не участвует).
- */
 public final class ProductDialog extends Dialog<Product> {
 
     private static final String TYPE_PRODUCT  = "Product";
     private static final String TYPE_WARRANTY = "Warranty";
+
+    private Product lastResult;
 
     public ProductDialog(Window owner, Product existing) {
         initOwner(owner);
@@ -38,7 +36,6 @@ public final class ProductDialog extends Dialog<Product> {
         boolean editing = existing != null;
         boolean warranty = existing instanceof ProductWithWarranty;
 
-        //Тип
         ToggleGroup typeGroup = new ToggleGroup();
         RadioButton productRadio  = new RadioButton(TYPE_PRODUCT);
         RadioButton warrantyRadio = new RadioButton(TYPE_WARRANTY);
@@ -48,15 +45,14 @@ public final class ProductDialog extends Dialog<Product> {
         productRadio.setDisable(editing);
         warrantyRadio.setDisable(editing);
 
-        //Поля
         TextField itemNumberField = new TextField(existing == null ? "" : String.valueOf(existing.getItemNumber()));
-        TextField nameField = new TextField(existing == null ? "" : existing.getProductName());
-        TextField categoryField = new TextField(existing == null ? "" : existing.getCategory());
-        TextField priceField = new TextField(existing == null ? "" : String.valueOf(existing.getPrice()));
-        TextField remainderField = new TextField(existing == null ? "" : String.valueOf(existing.getRemainder()));
+        TextField nameField       = new TextField(existing == null ? "" : existing.getProductName());
+        TextField categoryField   = new TextField(existing == null ? "" : existing.getCategory());
+        TextField priceField      = new TextField(existing == null ? "" : String.valueOf(existing.getPrice()));
+        TextField remainderField  = new TextField(existing == null ? "" : String.valueOf(existing.getRemainder()));
 
         DatePicker startDatePicker = new DatePicker();
-        TextField  warrantyMonths = new TextField();
+        TextField  warrantyMonths  = new TextField();
         if (existing instanceof ProductWithWarranty pw) {
             startDatePicker.setValue(pw.getStartOfWarranty());
             warrantyMonths.setText(String.valueOf(pw.getWarrantyMonths()));
@@ -64,7 +60,6 @@ public final class ProductDialog extends Dialog<Product> {
         startDatePicker.disableProperty().bind(warrantyRadio.selectedProperty().not());
         warrantyMonths.disableProperty().bind(warrantyRadio.selectedProperty().not());
 
-        //Разметка
         GridPane grid = new GridPane();
         grid.setHgap(10);
         grid.setVgap(8);
@@ -96,21 +91,23 @@ public final class ProductDialog extends Dialog<Product> {
         Button okButton = (Button) getDialogPane().lookupButton(okType);
         okButton.addEventFilter(ActionEvent.ACTION, evt -> {
             try {
-                parseResult(productRadio, itemNumberField, nameField, categoryField,
-                        priceField, remainderField, startDatePicker, warrantyMonths);
+                Product candidate = parseResult(productRadio, itemNumberField, nameField,
+                        categoryField, priceField, remainderField,
+                        startDatePicker, warrantyMonths);
+
+                // здесь же отдаём работу бизнес-валидации из Editable
+                List<String> errors = candidate.validate();
+                if (!errors.isEmpty()) {
+                    throw new IllegalArgumentException(String.join("\n", errors));
+                }
+                lastResult = candidate;
             } catch (IllegalArgumentException ex) {
                 Dialogs.showError(getOwner(), "Ошибка ввода", ex.getMessage());
-                evt.consume(); // не закрывать диалог
+                evt.consume();
             }
         });
 
-        setResultConverter(bt -> {
-            if (bt != okType)
-                return null;
-
-            return parseResult(productRadio, itemNumberField, nameField, categoryField,
-                    priceField, remainderField, startDatePicker, warrantyMonths);
-        });
+        setResultConverter(bt -> bt == okType ? lastResult : null);
     }
 
     private static Product parseResult(RadioButton productRadio,
@@ -122,10 +119,10 @@ public final class ProductDialog extends Dialog<Product> {
                                        DatePicker startDatePicker,
                                        TextField warrantyMonths) {
         int itemNumber = parseInt(itemNumberField, "Артикул");
-        String name    = nameField.getText();
+        String name     = nameField.getText();
         String category = categoryField.getText();
-        int price      = parseInt(priceField, "Цена");
-        int remainder  = parseInt(remainderField, "Остаток");
+        int price       = parseInt(priceField, "Цена");
+        int remainder   = parseInt(remainderField, "Остаток");
 
         if (productRadio.isSelected()) {
             return new Product(itemNumber, name, category, price, remainder);

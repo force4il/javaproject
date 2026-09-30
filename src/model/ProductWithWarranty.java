@@ -1,27 +1,13 @@
 package model;
 
 import java.time.LocalDate;
-import java.util.List;
 import java.util.ArrayList;
+import java.util.List;
 
 public class ProductWithWarranty extends Product {
 
     private LocalDate startOfWarranty;
     private int warrantyMonths;
-
-    @Override
-    public List<String> validate() {
-        List<String> errors = new ArrayList<>(super.validate());
-
-        if (startOfWarranty == null)
-            errors.add("startOfWarranty не задана");
-        if (warrantyMonths <= 0)
-            errors.add("warrantyMonths должен быть больше 0");
-        if (startOfWarranty != null && startOfWarranty.isAfter(LocalDate.now()))
-            errors.add("дата начала гарантии не может быть больше сегодняшней даты");
-
-        return errors;
-    }
 
     public ProductWithWarranty(int itemNumber, String productName, String category, int price,
                                int remainder, LocalDate startOfWarranty, int warrantyMonths) {
@@ -30,10 +16,33 @@ public class ProductWithWarranty extends Product {
         this.warrantyMonths = warrantyMonths;
     }
 
+    @Override
+    public List<String> validate() {
+        List<String> errors = new ArrayList<>(super.validate());
+        if (startOfWarranty == null)
+            errors.add("startOfWarranty не задана");
+        if (warrantyMonths <= 0)
+            errors.add("warrantyMonths должен быть больше 0");
+        if (startOfWarranty != null && startOfWarranty.isAfter(LocalDate.now()))
+            errors.add("дата начала гарантии не может быть больше сегодняшней даты");
+        return errors;
+    }
+
+    @Override
+    public void copyFrom(Product other) {
+        super.copyFrom(other);
+        if (other instanceof ProductWithWarranty pw) {
+            this.startOfWarranty = pw.getStartOfWarranty();
+            this.warrantyMonths = pw.getWarrantyMonths();
+        }
+    }
+
+    @Override
+    public EntityType getType() { return EntityType.WARRANTY; }
+
     public void setStartOfWarranty(LocalDate startOfWarranty) {
         this.startOfWarranty = startOfWarranty;
     }
-
     public void setWarrantyMonths(int warrantyMonths) {
         this.warrantyMonths = warrantyMonths;
     }
@@ -41,17 +50,13 @@ public class ProductWithWarranty extends Product {
     public LocalDate getStartOfWarranty() {
         return startOfWarranty;
     }
-
     public int getWarrantyMonths() {
         return warrantyMonths;
     }
 
-    //дата окончания гарантии
     public LocalDate getWarrantyEndDate() {
         return startOfWarranty.plusMonths(warrantyMonths);
     }
-
-    //действует ли еще гарантия
     public boolean isUnderWarranty() {
         return !LocalDate.now().isAfter(getWarrantyEndDate());
     }
@@ -69,5 +74,4 @@ public class ProductWithWarranty extends Product {
                 ", isUnderWarranty=" + isUnderWarranty() +
                 '}';
     }
-
 }

@@ -11,20 +11,17 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
 
+import model.CatalogItem;
+import model.EntityType;
 import model.Product;
 import model.ProductWithWarranty;
-import model.DiscontinuedProduct;
 
 public final class CsvSave {
 
     private static final char DELIMITER = ';';
 
-    public static void save(List<Product> products,
-                            List<DiscontinuedProduct> discontinuedProducts,
-                            Path file) throws CsvException {
-
-        Objects.requireNonNull(products, "products");
-        Objects.requireNonNull(discontinuedProducts, "discontinuedProducts");
+    public static void save(List<CatalogItem> items, Path file) throws CsvException {
+        Objects.requireNonNull(items, "items");
         Objects.requireNonNull(file, "file");
 
         try (var writer = Files.newBufferedWriter(file);
@@ -32,12 +29,8 @@ public final class CsvSave {
                      .withSeparator(DELIMITER)
                      .build()) {
 
-            for (Product p : products) {
-                csvWriter.writeNext(toLine(p));
-            }
-
-            for (DiscontinuedProduct d : discontinuedProducts) {
-                csvWriter.writeNext(toLine(d));
+            for (CatalogItem item : items) {
+                csvWriter.writeNext(toLine(item));
             }
         } catch (IOException e) {
             throw new CsvIOException(ErrorCode.FILE_WRITE,
@@ -45,11 +38,10 @@ public final class CsvSave {
         }
     }
 
-    //перевод объекта Product(и наследников) в строку для csv
-    private static String[] toLine(Product p) {
-        if (p instanceof ProductWithWarranty pw) {
+    private static String[] toLine(CatalogItem item) {
+        if (item instanceof ProductWithWarranty pw) {
             return new String[]{
-                    "Warranty",
+                    EntityType.WARRANTY.getCsvName(),
                     String.valueOf(pw.getItemNumber()),
                     pw.getProductName(),
                     pw.getCategory(),
@@ -59,26 +51,24 @@ public final class CsvSave {
                     String.valueOf(pw.getWarrantyMonths())
             };
         }
-
+        if (item instanceof Product p) {
+            return new String[]{
+                    EntityType.PRODUCT.getCsvName(),
+                    String.valueOf(p.getItemNumber()),
+                    p.getProductName(),
+                    p.getCategory(),
+                    String.valueOf(p.getPrice()),
+                    String.valueOf(p.getRemainder())
+            };
+        }
+        // DiscontinuedProduct (read-only)
         return new String[]{
-                "model.Product",
-                String.valueOf(p.getItemNumber()),
-                p.getProductName(),
-                p.getCategory(),
-                String.valueOf(p.getPrice()),
-                String.valueOf(p.getRemainder())
-        };
-    }
-
-    //перевод объекта DiscontinuedProduct в строку для csv
-    private static String[] toLine(DiscontinuedProduct d) {
-        return new String[]{
-                "Discontinued",
-                String.valueOf(d.itemNumber()),
-                d.productName(),
-                d.category(),
-                String.valueOf(d.price()),
-                String.valueOf(d.remainder())
+                EntityType.DISCONTINUED.getCsvName(),
+                String.valueOf(item.getItemNumber()),
+                item.getProductName(),
+                item.getCategory(),
+                String.valueOf(item.getPrice()),
+                String.valueOf(item.getRemainder())
         };
     }
 }

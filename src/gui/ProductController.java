@@ -3,7 +3,7 @@ package gui;
 import csv.CsvLoader;
 import csv.CsvSave;
 import exceptions.CsvException;
-import model.DiscontinuedProduct;
+import model.CatalogItem;
 import model.Editable;
 import model.Product;
 import model.ProductWithWarranty;
@@ -28,27 +28,23 @@ import javafx.stage.Stage;
 import java.io.File;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
 
 public final class ProductController {
 
-    private static final String TYPE_PRODUCT = "Product";
-    private static final String TYPE_WARRANTY = "Warranty";
-    private static final String TYPE_DISCONTINUED = "Discontinued";
-
     private static final String CSV_EXT = "*.csv";
 
     private static final String TITLE_LOAD = "Загрузка";
     private static final String TITLE_SAVE = "Сохранение";
+    private static final String TITLE_EDIT = "Изменение";
 
     private static final double PROGRESS_BAR_WIDTH = 220.0;
 
     private final Stage stage;
     private final BorderPane root;
-    private final TableView<Object> table;
-    private final ObservableList<Object> items = FXCollections.observableArrayList();
+    private final TableView<CatalogItem> table;
+    private final ObservableList<CatalogItem> items = FXCollections.observableArrayList();
 
     private final Button loadButton = new Button("Загрузить из CSV");
     private final Button saveButton = new Button("Сохранить в CSV");
@@ -72,7 +68,6 @@ public final class ProductController {
         addButton.setOnAction(e -> onAdd());
         editButton.setOnAction(e -> onEdit());
 
-        //полоса прогресса
         progressBar.setPrefWidth(PROGRESS_BAR_WIDTH);
         progressBar.setVisible(false);
         progressBar.setManaged(false);
@@ -90,96 +85,38 @@ public final class ProductController {
         root.setCenter(table);
     }
 
-    public BorderPane getView() {
-        return root;
-    }
+    public BorderPane getView() { return root; }
 
-    //Таблица
-    private TableView<Object> buildTable() {
-        TableView<Object> tv = new TableView<>(items);
+    // Таблица
+    private TableView<CatalogItem> buildTable() {
+        TableView<CatalogItem> tv = new TableView<>(items);
         tv.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
-        tv.getColumns().add(column("Тип", this::typeOf));
-        tv.getColumns().add(column("Артикул", o -> String.valueOf(itemNumberOf(o))));
-        tv.getColumns().add(column("Название", ProductController::nameOf));
-        tv.getColumns().add(column("Категория", ProductController::categoryOf));
-        tv.getColumns().add(column("Цена", o -> String.valueOf(priceOf(o))));
-        tv.getColumns().add(column("Остаток", o -> String.valueOf(remainderOf(o))));
+        tv.getColumns().add(column("Тип",       item -> item.getType().getCsvName()));
+        tv.getColumns().add(column("Артикул",   item -> String.valueOf(item.getItemNumber())));
+        tv.getColumns().add(column("Название",  CatalogItem::getProductName));
+        tv.getColumns().add(column("Категория", CatalogItem::getCategory));
+        tv.getColumns().add(column("Цена",      item -> String.valueOf(item.getPrice())));
+        tv.getColumns().add(column("Остаток",   item -> String.valueOf(item.getRemainder())));
         tv.getColumns().add(column("Гарантия до", this::warrantyEndOf));
         return tv;
     }
 
-    private static TableColumn<Object, String> column(String title,
-                                                      Function<Object, String> extractor) {
-        TableColumn<Object, String> col = new TableColumn<>(title);
+    private static TableColumn<CatalogItem, String> column(String title,
+                                                           Function<CatalogItem, String> extractor) {
+        TableColumn<CatalogItem, String> col = new TableColumn<>(title);
         col.setCellValueFactory(data ->
                 new ReadOnlyStringWrapper(extractor.apply(data.getValue())));
         return col;
     }
 
-    private String typeOf(Object o) {
-        if (o instanceof ProductWithWarranty)
-            return TYPE_WARRANTY;
-        if (o instanceof Product)
-            return TYPE_PRODUCT;
-        if (o instanceof DiscontinuedProduct)
-            return TYPE_DISCONTINUED;
-
-        return "?";
-    }
-
-    private static int itemNumberOf(Object o) {
-        if (o instanceof Product p)
-            return p.getItemNumber();
-        if (o instanceof DiscontinuedProduct d)
-            return d.itemNumber();
-
-        return 0;
-    }
-
-    private static String nameOf(Object o) {
-        if (o instanceof Product p)
-            return p.getProductName();
-        if (o instanceof DiscontinuedProduct d)
-            return d.productName();
-
-        return "";
-    }
-
-    private static String categoryOf(Object o) {
-        if (o instanceof Product p)
-            return p.getCategory();
-        if (o instanceof DiscontinuedProduct d)
-            return d.category();
-
-        return "";
-    }
-
-    private static int priceOf(Object o) {
-        if (o instanceof Product p)
-            return p.getPrice();
-        if (o instanceof DiscontinuedProduct d)
-            return d.price();
-
-        return 0;
-    }
-
-    private static int remainderOf(Object o) {
-        if (o instanceof Product p)
-            return p.getRemainder();
-        if (o instanceof DiscontinuedProduct d)
-            return d.remainder();
-
-        return 0;
-    }
-
-    private String warrantyEndOf(Object o) {
-        if (o instanceof ProductWithWarranty pw && pw.getStartOfWarranty() != null) {
+    private String warrantyEndOf(CatalogItem item) {
+        if (item instanceof ProductWithWarranty pw && pw.getStartOfWarranty() != null) {
             return pw.getWarrantyEndDate().toString();
         }
         return "";
     }
 
-    //Действия
+    // Действия
     private void onLoad() {
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Открыть CSV");
@@ -187,8 +124,7 @@ public final class ProductController {
         applyInitialDir(chooser);
 
         File file = chooser.showOpenDialog(stage);
-        if (file == null)
-            return;
+        if (file == null) return;
         Path path = file.toPath();
 
         Task<CsvLoader.LoadResult> task = new Task<>() {
@@ -200,8 +136,7 @@ public final class ProductController {
 
         task.setOnSucceeded(e -> {
             CsvLoader.LoadResult r = task.getValue();
-            items.setAll(r.products());
-            items.addAll(r.discontinuedProducts());
+            items.setAll(r.items());
             currentFile = path;
             statusLabel.setText("Загружено: " + path.getFileName()
                     + " (пропущено строк: " + r.skippedRows().size() + ")");
@@ -226,23 +161,15 @@ public final class ProductController {
         applyInitialDir(chooser);
 
         File file = chooser.showSaveDialog(stage);
-        if (file == null)
-            return;
+        if (file == null) return;
         Path path = file.toPath();
 
-        List<Product> products = new ArrayList<>();
-        List<DiscontinuedProduct> discontinued = new ArrayList<>();
-        for (Object o : items) {
-            if (o instanceof Product p)
-                products.add(p);
-            else if (o instanceof DiscontinuedProduct d)
-                discontinued.add(d);
-        }
+        var snapshot = new ArrayList<CatalogItem>(items);
 
         Task<Void> task = new Task<>() {
             @Override
             protected Void call() throws Exception {
-                CsvSave.save(products, discontinued, path);
+                CsvSave.save(snapshot, path);
                 return null;
             }
         };
@@ -270,34 +197,33 @@ public final class ProductController {
     }
 
     private void onEdit() {
-        Object selected = table.getSelectionModel().getSelectedItem();
-        if (!(selected instanceof Product existing))
+        CatalogItem selected = table.getSelectionModel().getSelectedItem();
+        if (selected == null) return;
+
+        if (!(selected instanceof Product existing)) {
+            Dialogs.showInfo(stage, TITLE_EDIT,
+                    "Этот тип записи доступен только для чтения и не может быть изменён.");
             return;
+        }
 
         ProductDialog dialog = new ProductDialog(stage, existing);
         dialog.showAndWait().ifPresent(updated -> {
-            applyUpdates(existing, updated);
+            existing.copyFrom(updated);
             table.refresh();
         });
     }
 
     private void applyInitialDir(FileChooser chooser) {
-        if (currentFile == null || currentFile.getParent() == null)
-            return;
+        if (currentFile == null || currentFile.getParent() == null) return;
         File dir = currentFile.getParent().toFile();
         if (dir.isDirectory())
             chooser.setInitialDirectory(dir);
     }
 
-    /**
-     * Запускает задачу в фоне. Полоса прогресса анимируется
-     * автоматически, пока задача выполняется.
-     */
     private void runInBackground(Task<?> task, String message) {
         statusLabel.setText(message);
         setIoButtonsDisabled(true);
 
-        // indeterminate: JavaFX сам «бегает» полоску
         progressBar.setProgress(ProgressBar.INDETERMINATE_PROGRESS);
         progressBar.setVisible(true);
         progressBar.setManaged(true);
@@ -330,7 +256,7 @@ public final class ProductController {
         }
     }
 
-    private void showSkipped(List<CsvLoader.SkippedRow> skipped) {
+    private void showSkipped(java.util.List<CsvLoader.SkippedRow> skipped) {
         StringBuilder sb = new StringBuilder();
         sb.append("Пропущено строк: ").append(skipped.size()).append("\n\n");
         for (CsvLoader.SkippedRow s : skipped) {
@@ -338,15 +264,5 @@ public final class ProductController {
                     .append(": ").append(s.cause().getMessage()).append('\n');
         }
         Dialogs.showInfo(stage, "Пропущенные строки", sb.toString());
-    }
-
-    private static void applyUpdates(Product target, Product source) {
-        target.setValues(source.getItemNumber(), source.getProductName(),
-                source.getCategory(), source.getPrice(), source.getRemainder());
-        if (target instanceof ProductWithWarranty tw
-                && source instanceof ProductWithWarranty sw) {
-            tw.setStartOfWarranty(sw.getStartOfWarranty());
-            tw.setWarrantyMonths(sw.getWarrantyMonths());
-        }
     }
 }

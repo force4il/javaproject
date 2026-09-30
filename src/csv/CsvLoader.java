@@ -17,9 +17,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import model.CatalogItem;
+import model.DiscontinuedProduct;
+import model.EntityType;
 import model.Product;
 import model.ProductWithWarranty;
-import model.DiscontinuedProduct;
 
 public final class CsvLoader {
 
@@ -28,22 +30,15 @@ public final class CsvLoader {
     private static final int FIELDS_WARRANTY     = 8;
     private static final int FIELDS_DISCONTINUED = 6;
 
-    /**Класс для работы с битыми строками*/
+    /** Класс для работы с битыми строками */
     public record SkippedRow(long lineNumber, CsvParseException cause) {}
 
-    public record LoadResult(List<Product> products,
-                             List<DiscontinuedProduct> discontinuedProducts,
-                             List<SkippedRow> skippedRows) {}
+    public record LoadResult(List<CatalogItem> items, List<SkippedRow> skippedRows) {}
 
-    /**
-     * Читает файл построчно. Битые строки не останавливают загрузку,
-     * данные о них записываются.
-     */
     public LoadResult load(Path file) throws CsvException {
         Objects.requireNonNull(file, "file");
 
-        List<Product> products = new ArrayList<>();
-        List<DiscontinuedProduct> discontinued = new ArrayList<>();
+        List<CatalogItem> items = new ArrayList<>();
         List<SkippedRow> skipped = new ArrayList<>();
 
         CSVParser parser = new CSVParserBuilder()
@@ -59,9 +54,9 @@ public final class CsvLoader {
             while ((parts = csvReader.readNext()) != null) {
                 long line = csvReader.getLinesRead();
                 try {
-                    addItem(parts, products, discontinued);
+                    addItem(parts, items);
                 } catch (CsvParseException e) {
-                    skipped.add(new SkippedRow(line, e)); //добавляем битую строку
+                    skipped.add(new SkippedRow(line, e));
                 }
             }
         } catch (IOException e) {
@@ -72,32 +67,32 @@ public final class CsvLoader {
                     "Ошибка парсинга CSV: " + e.getMessage(), e.getCause());
         }
 
-        return new LoadResult(products, discontinued, skipped);
+        return new LoadResult(items, skipped);
     }
 
-    //добавляет запись в список по соответствующему типу
-    private static void addItem(String[] parts,
-                                  List<Product> products,
-                                  List<DiscontinuedProduct> discontinued)
+    private static void addItem(String[] parts, List<CatalogItem> items)
             throws CsvParseException {
-        if (parts.length == 0)
-            return;
+        if (parts.length == 0) return;
 
-        String type = (parts[0] == null) ? "" : parts[0].trim();
+        String rawType = (parts[0] == null) ? "" : parts[0].trim();
+        if (rawType.isEmpty()) return;
+
+        EntityType type = EntityType.fromCsvName(rawType);
+        if (type == null) {
+            throw new CsvParseException(ErrorCode.UNKNOWN_TYPE,
+                    "неизвестный тип записи: " + rawType);
+        }
+
         switch (type) {
-            case "model.Product" -> products.add(parseProduct(parts));
-            case "Warranty" -> products.add(parseWarranty(parts));
-            case "Discontinued" -> discontinued.add(parseDiscontinued(parts));
-            case "" -> { /* пустая строка — просто пропуск */ }
-            default -> throw new CsvParseException(ErrorCode.UNKNOWN_TYPE,
-                    "неизвестный тип записи: " + type);
+            case PRODUCT      -> items.add(parseProduct(parts));
+            case WARRANTY     -> items.add(parseWarranty(parts));
+            case DISCONTINUED -> items.add(parseDiscontinued(parts));
         }
     }
 
-    //парсеры
-    //model.Product;itemNumber;productName;category;price;remainder
+    // Product;itemNumber;productName;category;price;remainder
     private static Product parseProduct(String[] p) throws CsvParseException {
-        expect(p, FIELDS_PRODUCT, "model.Product");
+        expect(p, FIELDS_PRODUCT, EntityType.PRODUCT.getCsvName());
         return new Product(
                 parseInt(p[1], "itemNumber"),
                 requireText(p[2], "productName"),
@@ -106,9 +101,9 @@ public final class CsvLoader {
                 parseInt(p[5], "remainder"));
     }
 
-    //Warranty;itemNumber;productName;category;price;remainder;startOfWarranty;warrantyMonths
+    // Warranty;itemNumber;productName;category;price;remainder;startOfWarranty;warrantyMonths
     private static ProductWithWarranty parseWarranty(String[] p) throws CsvParseException {
-        expect(p, FIELDS_WARRANTY, "Warranty");
+        expect(p, FIELDS_WARRANTY, EntityType.WARRANTY.getCsvName());
         return new ProductWithWarranty(
                 parseInt(p[1], "itemNumber"),
                 requireText(p[2], "productName"),
@@ -119,9 +114,9 @@ public final class CsvLoader {
                 parseInt(p[7], "warrantyMonths"));
     }
 
-    //Discontinued;itemNumber;productName;category;price;remainder
+    // Discontinued;itemNumber;productName;category;price;remainder
     private static DiscontinuedProduct parseDiscontinued(String[] p) throws CsvParseException {
-        expect(p, FIELDS_DISCONTINUED, "Discontinued");
+        expect(p, FIELDS_DISCONTINUED, EntityType.DISCONTINUED.getCsvName());
         return new DiscontinuedProduct(
                 parseInt(p[1], "itemNumber"),
                 requireText(p[2], "productName"),
@@ -130,7 +125,6 @@ public final class CsvLoader {
                 parseInt(p[5], "remainder"));
     }
 
-    //проверка верного кол-ва переданных полей
     private static void expect(String[] parts, int expected, String type)
             throws CsvParseException {
         if (parts.length != expected) {
@@ -140,8 +134,7 @@ public final class CsvLoader {
         }
     }
 
-    //проверка обязательного поля на пустоту или null
-    private static void CheckEmptyOrNull(String value, String field)
+    private static void checkEmptyOrNull(String value, String field)
             throws CsvParseException {
         if (value == null || value.isBlank()) {
             throw new CsvParseException(ErrorCode.BAD_FIELD,
@@ -149,17 +142,15 @@ public final class CsvLoader {
         }
     }
 
-    //проверка null строк
     private static String requireText(String value, String field)
             throws CsvParseException {
-        CheckEmptyOrNull(value, field);
+        checkEmptyOrNull(value, field);
         return value.trim();
     }
 
-    //перевод строки в число
     private static int parseInt(String value, String field)
             throws CsvParseException {
-        CheckEmptyOrNull(value, field);
+        checkEmptyOrNull(value, field);
         try {
             return Integer.parseInt(value.trim());
         } catch (NumberFormatException e) {
@@ -168,10 +159,9 @@ public final class CsvLoader {
         }
     }
 
-    //перевод строки в дату
     private static LocalDate parseDate(String value, String field)
             throws CsvParseException {
-        CheckEmptyOrNull(value, field);
+        checkEmptyOrNull(value, field);
         try {
             return LocalDate.parse(value.trim());
         } catch (DateTimeParseException e) {
