@@ -1,3 +1,5 @@
+package csv;
+
 import com.opencsv.CSVParser;
 import com.opencsv.CSVParserBuilder;
 import com.opencsv.CSVReaderBuilder;
@@ -14,6 +16,10 @@ import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+
+import model.Product;
+import model.ProductWithWarranty;
+import model.DiscontinuedProduct;
 
 public final class CsvLoader {
 
@@ -79,7 +85,7 @@ public final class CsvLoader {
 
         String type = (parts[0] == null) ? "" : parts[0].trim();
         switch (type) {
-            case "Product" -> products.add(parseProduct(parts));
+            case "model.Product" -> products.add(parseProduct(parts));
             case "Warranty" -> products.add(parseWarranty(parts));
             case "Discontinued" -> discontinued.add(parseDiscontinued(parts));
             case "" -> { /* пустая строка — просто пропуск */ }
@@ -89,9 +95,9 @@ public final class CsvLoader {
     }
 
     //парсеры
-    //Product;itemNumber;productName;category;price;remainder
+    //model.Product;itemNumber;productName;category;price;remainder
     private static Product parseProduct(String[] p) throws CsvParseException {
-        expect(p, FIELDS_PRODUCT, "Product");
+        expect(p, FIELDS_PRODUCT, "model.Product");
         return new Product(
                 parseInt(p[1], "itemNumber"),
                 requireText(p[2], "productName"),

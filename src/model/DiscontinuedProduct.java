@@ -1,3 +1,5 @@
+package model;
+
 /** read-only class*/
 public record DiscontinuedProduct(int itemNumber, String productName, String category,
                               int price, int remainder) {

@@ -1,3 +1,5 @@
+package model;
+
 import java.time.LocalDate;
 import java.util.List;
 import java.util.ArrayList;
@@ -56,7 +58,7 @@ public class ProductWithWarranty extends Product {
 
     @Override
     public String toString() {
-        return "ProductWithWarranty{" +
+        return "model.ProductWithWarranty{" +
                 "itemNumber=" + itemNumber +
                 ", productName='" + productName + '\'' +
                 ", category='" + category + '\'' +

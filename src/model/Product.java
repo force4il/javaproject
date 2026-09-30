@@ -1,3 +1,5 @@
+package model;
+
 import java.util.List;
 import java.util.ArrayList;
 
@@ -69,7 +71,7 @@ public class Product implements Editable {
 
     @Override
     public String toString() {
-        return "Product{" +
+        return "model.Product{" +
                 "itemNumber=" + itemNumber +
                 ", productName='" + productName + '\'' +
                 ", category='" + category + '\'' +

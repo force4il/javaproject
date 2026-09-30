@@ -1,3 +1,5 @@
+package csv;
+
 import com.opencsv.CSVWriterBuilder;
 import exceptions.CsvException;
 import exceptions.CsvIOException;
@@ -8,6 +10,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
+
+import model.Product;
+import model.ProductWithWarranty;
+import model.DiscontinuedProduct;
 
 public final class CsvSave {
 
@@ -55,7 +61,7 @@ public final class CsvSave {
         }
 
         return new String[]{
-                "Product",
+                "model.Product",
                 String.valueOf(p.getItemNumber()),
                 p.getProductName(),
                 p.getCategory(),
