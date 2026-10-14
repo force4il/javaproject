@@ -1,6 +1,6 @@
 package model;
 
-/**Общий read-only контракт для всех сущностей каталога*/
+/** Общий read-only контракт для всех сущностей каталога */
 public interface CatalogItem {
     int getItemNumber();
     String getProductName();

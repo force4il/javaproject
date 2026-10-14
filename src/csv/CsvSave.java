@@ -25,13 +25,8 @@ public final class CsvSave {
         Objects.requireNonNull(file, "file");
 
         try (var writer = Files.newBufferedWriter(file);
-             var csvWriter = new CSVWriterBuilder(writer)
-                     .withSeparator(DELIMITER)
-                     .build()) {
-
-            for (CatalogItem item : items) {
-                csvWriter.writeNext(toLine(item));
-            }
+             var csvWriter = new CSVWriterBuilder(writer).withSeparator(DELIMITER).build()) {
+            for (CatalogItem item : items) csvWriter.writeNext(toLine(item));
         } catch (IOException e) {
             throw new CsvIOException(ErrorCode.FILE_WRITE,
                     "Не удалось сохранить файл: " + file, e);
@@ -43,10 +38,8 @@ public final class CsvSave {
             return new String[]{
                     EntityType.WARRANTY.getCsvName(),
                     String.valueOf(pw.getItemNumber()),
-                    pw.getProductName(),
-                    pw.getCategory(),
-                    String.valueOf(pw.getPrice()),
-                    String.valueOf(pw.getRemainder()),
+                    pw.getProductName(), pw.getCategory(),
+                    String.valueOf(pw.getPrice()), String.valueOf(pw.getRemainder()),
                     pw.getStartOfWarranty() != null ? pw.getStartOfWarranty().toString() : "",
                     String.valueOf(pw.getWarrantyMonths())
             };
@@ -55,20 +48,15 @@ public final class CsvSave {
             return new String[]{
                     EntityType.PRODUCT.getCsvName(),
                     String.valueOf(p.getItemNumber()),
-                    p.getProductName(),
-                    p.getCategory(),
-                    String.valueOf(p.getPrice()),
-                    String.valueOf(p.getRemainder())
+                    p.getProductName(), p.getCategory(),
+                    String.valueOf(p.getPrice()), String.valueOf(p.getRemainder())
             };
         }
-        // DiscontinuedProduct (read-only)
         return new String[]{
                 EntityType.DISCONTINUED.getCsvName(),
                 String.valueOf(item.getItemNumber()),
-                item.getProductName(),
-                item.getCategory(),
-                String.valueOf(item.getPrice()),
-                String.valueOf(item.getRemainder())
+                item.getProductName(), item.getCategory(),
+                String.valueOf(item.getPrice()), String.valueOf(item.getRemainder())
         };
     }
 }

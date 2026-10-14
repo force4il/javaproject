@@ -2,15 +2,7 @@ package gui;
 
 import javafx.event.ActionEvent;
 import javafx.geometry.Insets;
-import javafx.scene.control.Button;
-import javafx.scene.control.ButtonBar;
-import javafx.scene.control.ButtonType;
-import javafx.scene.control.DatePicker;
-import javafx.scene.control.Dialog;
-import javafx.scene.control.Label;
-import javafx.scene.control.RadioButton;
-import javafx.scene.control.TextField;
-import javafx.scene.control.ToggleGroup;
+import javafx.scene.control.*;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.stage.Window;
@@ -23,7 +15,7 @@ import model.ProductWithWarranty;
 
 public final class ProductDialog extends Dialog<Product> {
 
-    private static final String TYPE_PRODUCT  = "Product";
+    private static final String TYPE_PRODUCT = "Product";
     private static final String TYPE_WARRANTY = "Warranty";
 
     private Product lastResult;
@@ -37,7 +29,7 @@ public final class ProductDialog extends Dialog<Product> {
         boolean warranty = existing instanceof ProductWithWarranty;
 
         ToggleGroup typeGroup = new ToggleGroup();
-        RadioButton productRadio  = new RadioButton(TYPE_PRODUCT);
+        RadioButton productRadio = new RadioButton(TYPE_PRODUCT);
         RadioButton warrantyRadio = new RadioButton(TYPE_WARRANTY);
         productRadio.setToggleGroup(typeGroup);
         warrantyRadio.setToggleGroup(typeGroup);
@@ -45,14 +37,17 @@ public final class ProductDialog extends Dialog<Product> {
         productRadio.setDisable(editing);
         warrantyRadio.setDisable(editing);
 
-        TextField itemNumberField = new TextField(existing == null ? "" : String.valueOf(existing.getItemNumber()));
-        TextField nameField       = new TextField(existing == null ? "" : existing.getProductName());
-        TextField categoryField   = new TextField(existing == null ? "" : existing.getCategory());
-        TextField priceField      = new TextField(existing == null ? "" : String.valueOf(existing.getPrice()));
-        TextField remainderField  = new TextField(existing == null ? "" : String.valueOf(existing.getRemainder()));
+        TextField itemNumberField = new TextField(
+                existing == null ? "" : String.valueOf(existing.getItemNumberRaw()));
+        TextField nameField = new TextField(existing == null ? "" : existing.getProductName());
+        TextField categoryField = new TextField(existing == null ? "" : existing.getCategory());
+        TextField priceField = new TextField(
+                existing == null ? "" : String.valueOf(existing.getPriceRaw()));
+        TextField remainderField = new TextField(
+                existing == null ? "" : String.valueOf(existing.getRemainder()));
 
         DatePicker startDatePicker = new DatePicker();
-        TextField  warrantyMonths  = new TextField();
+        TextField warrantyMonths = new TextField();
         if (existing instanceof ProductWithWarranty pw) {
             startDatePicker.setValue(pw.getStartOfWarranty());
             warrantyMonths.setText(String.valueOf(pw.getWarrantyMonths()));
@@ -94,12 +89,9 @@ public final class ProductDialog extends Dialog<Product> {
                 Product candidate = parseResult(productRadio, itemNumberField, nameField,
                         categoryField, priceField, remainderField,
                         startDatePicker, warrantyMonths);
-
-                // здесь же отдаём работу бизнес-валидации из Editable
                 List<String> errors = candidate.validate();
-                if (!errors.isEmpty()) {
+                if (!errors.isEmpty())
                     throw new IllegalArgumentException(String.join("\n", errors));
-                }
                 lastResult = candidate;
             } catch (IllegalArgumentException ex) {
                 Dialogs.showError(getOwner(), "Ошибка ввода", ex.getMessage());
@@ -118,29 +110,51 @@ public final class ProductDialog extends Dialog<Product> {
                                        TextField remainderField,
                                        DatePicker startDatePicker,
                                        TextField warrantyMonths) {
-        int itemNumber = parseInt(itemNumberField, "Артикул");
-        String name     = nameField.getText();
+        long itemNumber = parseLong(itemNumberField, "Артикул");
+        String name = nameField.getText();
         String category = categoryField.getText();
-        int price       = parseInt(priceField, "Цена");
-        int remainder   = parseInt(remainderField, "Остаток");
+        long price = parseLong(priceField, "Цена");
+        int remainder = parseInt(remainderField, "Остаток");
 
-        if (productRadio.isSelected()) {
+        if (productRadio.isSelected())
             return new Product(itemNumber, name, category, price, remainder);
-        }
+
         LocalDate start = startDatePicker.getValue();
-        if (start == null) {
+        if (start == null)
             throw new IllegalArgumentException("Не указана дата начала гарантии");
-        }
         int months = parseInt(warrantyMonths, "Гарантия (мес)");
-        return new ProductWithWarranty(itemNumber, name, category, price, remainder, start, months);
+        return new ProductWithWarranty(itemNumber, name, category, price, remainder,
+                start, months);
+    }
+
+    private static long parseLong(TextField field, String label) {
+        String text = field.getText() == null ? "" : field.getText().trim();
+        if (text.isEmpty())
+            throw new IllegalArgumentException("Поле " + label + " не заполнено");
+        try {
+            return new java.math.BigInteger(text).longValueExact();
+        } catch (NumberFormatException ex) {
+            throw new IllegalArgumentException(
+                    "Поле " + label + " должно быть целым числом (не число: \"" + text + "\")");
+        } catch (ArithmeticException ex) {
+            throw new IllegalArgumentException(
+                    "Поле " + label + " = " + text + " слишком велико");
+        }
     }
 
     private static int parseInt(TextField field, String label) {
         String text = field.getText() == null ? "" : field.getText().trim();
+        if (text.isEmpty())
+            throw new IllegalArgumentException("Поле " + label + " не заполнено");
         try {
-            return Integer.parseInt(text);
+            return new java.math.BigInteger(text).intValueExact();
         } catch (NumberFormatException ex) {
-            throw new IllegalArgumentException("Поле «" + label + "» должно быть целым числом");
+            throw new IllegalArgumentException(
+                    "Поле " + label + " должно быть целым числом (не число: \"" + text + "\")");
+        } catch (ArithmeticException ex) {
+            throw new IllegalArgumentException(
+                    "Поле " + label + " = " + text + " не помещается в int ("
+                            + Integer.MIN_VALUE + ".." + Integer.MAX_VALUE + ")");
         }
     }
 }

@@ -1,7 +1,8 @@
 package exceptions;
 
-/**ошибка ввода/вывода*/
+/** Ошибка ввода/вывода */
 public class CsvIOException extends CsvException {
+
     public CsvIOException(ErrorCode errorCode, String message, Throwable cause) {
         super(errorCode, message, cause);
     }
