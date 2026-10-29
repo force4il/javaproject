@@ -11,6 +11,10 @@ public class Product implements Editable, CatalogItem {
     protected long price;
     protected int remainder;
 
+    public static final int MIN_ITEM_NUMBER = 1;
+    public static final int MIN_NUM_BORDER = 0;
+    public static final int MAX_REMAINDER = 100;
+
     public Product(long itemNumber, String productName, String category,
                    long price, int remainder) {
         this.itemNumber = itemNumber;
@@ -31,16 +35,16 @@ public class Product implements Editable, CatalogItem {
             errors.add("price = " + price + " не вмещается в int ("
                     + Integer.MIN_VALUE + ".." + Integer.MAX_VALUE + ")");
 
-        if (itemNumber <= 0)
-            errors.add("itemNumber должен быть больше 0");
+        if (itemNumber < MIN_ITEM_NUMBER)
+            errors.add("itemNumber должен быть больше " + MIN_ITEM_NUMBER);
         if (productName == null || productName.isBlank())
             errors.add("productName не задано");
         if (category == null || category.isBlank())
             errors.add("category не задано");
-        if (price < 0)
-            errors.add("price не может быть отрицательным");
-        if (remainder < 0 || remainder >= 100)
-            errors.add("remainder не может быть отрицательным или большим 99");
+        if (price < MIN_NUM_BORDER)
+            errors.add("price не может быть меньше " + MIN_NUM_BORDER);
+        if (remainder < MIN_NUM_BORDER || remainder >= MAX_REMAINDER)
+            errors.add("remainder не может быть меньше " + MIN_NUM_BORDER + " или большим " + MAX_REMAINDER);
 
         return errors;
     }
@@ -48,20 +52,6 @@ public class Product implements Editable, CatalogItem {
     //проверка на диапазон переданного числа
     private static boolean checkToInt(long value) {
         return value < Integer.MIN_VALUE || value > Integer.MAX_VALUE;
-    }
-
-    public void setValues(long itemNumber, String productName, String category,
-                          long price, int remainder) {
-        this.itemNumber = itemNumber;
-        this.productName = productName;
-        this.category = category;
-        this.price = price;
-        this.remainder = remainder;
-    }
-
-    public void copyFrom(Product other) {
-        setValues(other.itemNumber, other.productName,
-                other.category, other.price, other.remainder);
     }
 
     public long getItemNumberRaw() { return itemNumber; }

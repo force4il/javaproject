@@ -6,7 +6,7 @@ import javafx.stage.Stage;
 
 public class Gui extends Application {
 
-    private static final double WIDTH  = 1200;
+    private static final double WIDTH = 1200;
     private static final double HEIGHT = 720;
 
     @Override

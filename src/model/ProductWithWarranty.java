@@ -6,8 +6,8 @@ import java.util.List;
 
 public class ProductWithWarranty extends Product {
 
-    private LocalDate startOfWarranty;
-    private int warrantyMonths;
+    private final LocalDate startOfWarranty;
+    private final int warrantyMonths;
 
     public ProductWithWarranty(long itemNumber, String productName, String category,
                                long price, int remainder,
@@ -30,25 +30,15 @@ public class ProductWithWarranty extends Product {
         return errors;
     }
 
-    @Override
-    public void copyFrom(Product other) {
-        super.copyFrom(other);
-        if (other instanceof ProductWithWarranty pw) {
-            this.startOfWarranty = pw.getStartOfWarranty();
-            this.warrantyMonths  = pw.getWarrantyMonths();
-        }
-    }
 
     @Override public EntityType getType() { return EntityType.WARRANTY; }
-
-    public void setStartOfWarranty(LocalDate d) { this.startOfWarranty = d; }
-    public void setWarrantyMonths (int m) { this.warrantyMonths = m; }
 
     public LocalDate getStartOfWarranty() { return startOfWarranty; }
     public int getWarrantyMonths() { return warrantyMonths; }
 
-    public LocalDate getWarrantyEndDate() { return startOfWarranty.plusMonths(warrantyMonths); }
-    public boolean isUnderWarranty() { return !LocalDate.now().isAfter(getWarrantyEndDate()); }
+    public LocalDate getWarrantyEndDate() {
+        return startOfWarranty == null ? null : startOfWarranty.plusMonths(warrantyMonths);
+    }
 
     @Override
     public String toString() {

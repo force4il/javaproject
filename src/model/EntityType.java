@@ -1,5 +1,7 @@
 package model;
 
+import java.util.Optional;
+
 /** Тип сущности в CSV */
 public enum EntityType {
     PRODUCT("Product"),
@@ -12,10 +14,13 @@ public enum EntityType {
 
     public String getCsvName() { return csvName; }
 
-    public static EntityType fromCsvName(String name) {
-        if (name == null) return null;
+    public static Optional<EntityType> fromCsvName(String name) {
+        if (name == null)
+            return Optional.empty();
         for (EntityType t : values())
-            if (t.csvName.equals(name)) return t;
-        return null;
+            if (t.csvName.equals(name))
+                return Optional.of(t);
+
+        return Optional.empty();
     }
 }

@@ -1,5 +1,6 @@
 package exceptions;
 
+/** Собственные номера исключений */
 public enum ErrorCode {
 
     FILE_READ("CSV_001", "Ошибка чтения файла"),

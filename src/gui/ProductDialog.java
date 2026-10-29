@@ -7,8 +7,10 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.stage.Window;
 
+import java.math.BigInteger;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.function.Predicate;
 
 import model.Product;
 import model.ProductWithWarranty;
@@ -19,8 +21,7 @@ public final class ProductDialog extends Dialog<Product> {
     private static final String TYPE_WARRANTY = "Warranty";
 
     private Product lastResult;
-
-    public ProductDialog(Window owner, Product existing) {
+    public ProductDialog(Window owner, Product existing, Predicate<Integer> keyInUse) {
         initOwner(owner);
         setTitle(existing == null ? "Добавить товар" : "Редактировать товар");
         setResizable(true);
@@ -52,6 +53,7 @@ public final class ProductDialog extends Dialog<Product> {
             startDatePicker.setValue(pw.getStartOfWarranty());
             warrantyMonths.setText(String.valueOf(pw.getWarrantyMonths()));
         }
+
         startDatePicker.disableProperty().bind(warrantyRadio.selectedProperty().not());
         warrantyMonths.disableProperty().bind(warrantyRadio.selectedProperty().not());
 
@@ -89,9 +91,24 @@ public final class ProductDialog extends Dialog<Product> {
                 Product candidate = parseResult(productRadio, itemNumberField, nameField,
                         categoryField, priceField, remainderField,
                         startDatePicker, warrantyMonths);
+
+                // проверка уникальности артикула
+                boolean sameAsExisting = existing != null
+                        && candidate.getItemNumberRaw() == existing.getItemNumberRaw();
+                if (!sameAsExisting && keyInUse != null) {
+                    long raw = candidate.getItemNumberRaw();
+                    if (raw < Integer.MIN_VALUE || raw > Integer.MAX_VALUE)
+                        throw new IllegalArgumentException(
+                                "Артикул " + raw + " не помещается в int");
+
+                    if (keyInUse.test((int) raw))
+                        throw new IllegalArgumentException("Артикул " + raw + " уже используется");
+                }
+
                 List<String> errors = candidate.validate();
                 if (!errors.isEmpty())
                     throw new IllegalArgumentException(String.join("\n", errors));
+
                 lastResult = candidate;
             } catch (IllegalArgumentException ex) {
                 Dialogs.showError(getOwner(), "Ошибка ввода", ex.getMessage());
@@ -102,14 +119,10 @@ public final class ProductDialog extends Dialog<Product> {
         setResultConverter(bt -> bt == okType ? lastResult : null);
     }
 
-    private static Product parseResult(RadioButton productRadio,
-                                       TextField itemNumberField,
-                                       TextField nameField,
-                                       TextField categoryField,
-                                       TextField priceField,
-                                       TextField remainderField,
-                                       DatePicker startDatePicker,
-                                       TextField warrantyMonths) {
+    private static Product parseResult(RadioButton productRadio, TextField itemNumberField,
+                                       TextField nameField, TextField categoryField,
+                                       TextField priceField, TextField remainderField,
+                                       DatePicker startDatePicker, TextField warrantyMonths) {
         long itemNumber = parseLong(itemNumberField, "Артикул");
         String name = nameField.getText();
         String category = categoryField.getText();
@@ -122,6 +135,7 @@ public final class ProductDialog extends Dialog<Product> {
         LocalDate start = startDatePicker.getValue();
         if (start == null)
             throw new IllegalArgumentException("Не указана дата начала гарантии");
+
         int months = parseInt(warrantyMonths, "Гарантия (мес)");
         return new ProductWithWarranty(itemNumber, name, category, price, remainder,
                 start, months);
@@ -131,6 +145,7 @@ public final class ProductDialog extends Dialog<Product> {
         String text = field.getText() == null ? "" : field.getText().trim();
         if (text.isEmpty())
             throw new IllegalArgumentException("Поле " + label + " не заполнено");
+
         try {
             return new java.math.BigInteger(text).longValueExact();
         } catch (NumberFormatException ex) {
@@ -146,6 +161,7 @@ public final class ProductDialog extends Dialog<Product> {
         String text = field.getText() == null ? "" : field.getText().trim();
         if (text.isEmpty())
             throw new IllegalArgumentException("Поле " + label + " не заполнено");
+
         try {
             return new java.math.BigInteger(text).intValueExact();
         } catch (NumberFormatException ex) {

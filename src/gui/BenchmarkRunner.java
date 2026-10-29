@@ -2,24 +2,27 @@ package gui;
 
 import exceptions.TreeOperationException;
 import model.CatalogItem;
-import model.DiscontinuedProduct;
-import model.Product;
-import model.ProductWithWarranty;
+import service.DataGenerator;
 import tree.BTree;
 
-import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
 import java.util.function.BooleanSupplier;
 
 public final class BenchmarkRunner {
 
+    private static final int STEP_MASK = 0x3FF;
+    private static final int RANGE_SCAN_REPEATS = 100;
+    private static final int KEY_BOUND = Integer.MAX_VALUE / 2;
+
+    private BenchmarkRunner() {}
+
     public record Row(String operation, int n, long nanos) {
-        public double millis() { return nanos / 1_000_000.0; }
+        public double millis() { return nanos / 1000000.0; }
     }
 
-    /** Запускает полный замер на n элементов. */
     public static List<Row> run(int n, long seed, BooleanSupplier cancelled) {
         List<Row> rows = new ArrayList<>();
         int[] keys = randomKeys(n, seed);
@@ -27,49 +30,100 @@ public final class BenchmarkRunner {
 
         BTree<CatalogItem> tree = new BTree<>();
 
+        // вставка
         long t0 = System.nanoTime();
         for (int i = 0; i < n; i++) {
-            if ((i & 0x3FF) == 0 && cancelled.getAsBoolean()) return rows;
-            try { tree.insert(keys[i], items.get(i)); }
-            catch (TreeOperationException ignore) { /* дубликатов нет */ }
+            if ((i & STEP_MASK) == 0 && cancelled.getAsBoolean())
+                return rows;
+
+            insertOrBoom(tree, keys[i], items.get(i));
         }
         rows.add(new Row("Вставка", n, System.nanoTime() - t0));
 
+        //поиск
         t0 = System.nanoTime();
         for (int i = 0; i < n; i++) {
-            if ((i & 0x3FF) == 0 && cancelled.getAsBoolean()) return rows;
-            tree.search(keys[i]);
+            if ((i & STEP_MASK) == 0 && cancelled.getAsBoolean())
+                return rows;
+
+            searchOrBoom(tree, keys[i]);
         }
         rows.add(new Row("Поиск", n, System.nanoTime() - t0));
 
+        // диапазонный скан
+        int lo = Math.min(keys[0], keys[n - 1]);
+        int hi = Math.max(keys[0], keys[n - 1]);
         t0 = System.nanoTime();
-        try {
-            for (int r = 0; r < 100; r++) tree.rangeScan(keys[0], keys[n - 1]);
-        } catch (TreeOperationException ignore) {}
-        rows.add(new Row("Диапазонный скан ×100", n, System.nanoTime() - t0));
+        for (int r = 0; r < RANGE_SCAN_REPEATS; r++) {
+            if (cancelled.getAsBoolean())
+                return rows;
 
+            rangeScanOrBoom(tree, lo, hi);
+        }
+        rows.add(new Row("Диапазонный скан ×" + RANGE_SCAN_REPEATS, n,
+                System.nanoTime() - t0));
+
+        // статистика
         t0 = System.nanoTime();
         BTree.FillStats st = tree.stats();
         rows.add(new Row("Статистика", st.nodes(), System.nanoTime() - t0));
 
+        // удаление
         t0 = System.nanoTime();
         for (int i = 0; i < n; i++) {
-            if ((i & 0x3FF) == 0 && cancelled.getAsBoolean()) return rows;
-            try { tree.delete(keys[i]); }
-            catch (TreeOperationException ignore) {}
+            if ((i & STEP_MASK) == 0 && cancelled.getAsBoolean())
+                return rows;
+
+            deleteOrBoom(tree, keys[i]);
         }
         rows.add(new Row("Удаление", n, System.nanoTime() - t0));
 
         return rows;
     }
 
+    private static void insertOrBoom(BTree<CatalogItem> tree, int key, CatalogItem item) {
+        try {
+            tree.insert(key, item);
+        } catch (TreeOperationException e) {
+            throw new IllegalStateException("insert failed for key " + key, e);
+        }
+    }
+
+    private static void searchOrBoom(BTree<CatalogItem> tree, int key) {
+        try {
+            if (tree.search(key) == null)
+                throw new IllegalStateException("search miss for key " + key);
+        } catch (TreeOperationException e) {
+            throw new IllegalStateException("search failed for key " + key, e);
+        }
+    }
+
+    private static void rangeScanOrBoom(BTree<CatalogItem> tree, int lo, int hi) {
+        try {
+            tree.rangeScan(lo, hi);
+        } catch (TreeOperationException e) {
+            throw new IllegalStateException(
+                    "rangeScan failed for [" + lo + ".." + hi + "]", e);
+        }
+    }
+
+    private static void deleteOrBoom(BTree<CatalogItem> tree, int key) {
+        try {
+            tree.delete(key);
+        } catch (TreeOperationException e) {
+            throw new IllegalStateException("delete failed for key " + key, e);
+        }
+    }
+
     static int[] randomKeys(int n, long seed) {
         Random rnd = new Random(seed);
         int[] keys = new int[n];
-        java.util.HashSet<Integer> used = new java.util.HashSet<>(n * 2);
+        HashSet<Integer> used = new HashSet<>(n * 2);
         for (int i = 0; i < n; i++) {
             int k;
-            do { k = rnd.nextInt(Integer.MAX_VALUE / 2) + 1; } while (!used.add(k));
+            do {
+                k = rnd.nextInt(KEY_BOUND) + 1;
+            } while (!used.add(k));
             keys[i] = k;
         }
         return keys;
@@ -78,20 +132,9 @@ public final class BenchmarkRunner {
     static List<CatalogItem> makeItems(int[] keys, long seed) {
         Random rnd = new Random(seed ^ 0x9E3779B9L);
         List<CatalogItem> out = new ArrayList<>(keys.length);
-        for (int k : keys) {
-            int kind = rnd.nextInt(3);
-            String name = "Item" + k;
-            String cat  = "Cat" + (rnd.nextInt(5) + 1);
-            int price   = 100 + rnd.nextInt(900);
-            int rem     = rnd.nextInt(500);
-            switch (kind) {
-                case 0 -> out.add(new Product(k, name, cat, price, rem));
-                case 1 -> out.add(new ProductWithWarranty(k, name, cat, price, rem,
-                        LocalDate.now().minusDays(rnd.nextInt(365)),
-                        6 + rnd.nextInt(24)));
-                default -> out.add(new DiscontinuedProduct(k, name, cat, price, rem));
-            }
-        }
+        for (int k : keys)
+            out.add(DataGenerator.randomItem(k, rnd));
+
         return out;
     }
 }

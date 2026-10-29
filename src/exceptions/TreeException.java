@@ -1,6 +1,6 @@
 package exceptions;
 
-/** Базовое проверяемое исключение для операций над деревом*/
+/** Базовое исключение для операций над деревом*/
 public class TreeException extends AppException {
 
     public TreeException(ErrorCode errorCode, String message) {

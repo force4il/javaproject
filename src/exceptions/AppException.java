@@ -1,6 +1,6 @@
 package exceptions;
 
-/** Общий предок всех проверяемых исключений приложения*/
+/** Общее исключение приложения */
 public class AppException extends Exception {
 
     private final ErrorCode errorCode;
