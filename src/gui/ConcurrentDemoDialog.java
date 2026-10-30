@@ -15,6 +15,7 @@ import service.RaceConditionRunner;
 import tree.BTree;
 
 import java.io.File;
+import java.util.Locale;
 
 public final class ConcurrentDemoDialog {
 
@@ -28,9 +29,10 @@ public final class ConcurrentDemoDialog {
     private final CheckBox syncToggle = new CheckBox("Синхронизировать вставку");
     private final TextField threadsField = new TextField("10");
 
-    private final Button btnLoad  = new Button("Загрузить CSV");
+    private final Button btnLoad = new Button("Загрузить CSV");
     private final Button btnAdd = new Button("Запустить вставку");
     private final Button btnClear = new Button("Очистить");
+    private final Button btnStats = new Button("Статистика узлов");
 
     private boolean busy = false;
     private boolean treeDamaged = false;
@@ -59,9 +61,11 @@ public final class ConcurrentDemoDialog {
             statusLabel.setText("Дерево очищено");
             statusLabel.setStyle("-fx-text-fill: black;");
         });
+        btnStats.setOnAction(e -> showTreeStats(owner));
 
         HBox firstRow = new HBox(10, btnLoad,
-                new Label("Количество потоков:"), threadsField, btnAdd, btnClear);
+                new Label("Количество потоков:"), threadsField,
+                btnAdd, btnClear, btnStats);
         firstRow.setAlignment(Pos.CENTER_LEFT);
 
         VBox toolbar = new VBox(8, firstRow, syncToggle, statusLabel);
@@ -73,7 +77,7 @@ public final class ConcurrentDemoDialog {
         BorderPane root = new BorderPane();
         root.setTop(toolbar);
         root.setCenter(visualizer);
-        root.setPrefSize(850, 600);
+        root.setPrefSize(1000, 600);
 
         dlg.getDialogPane().setContent(root);
         dlg.showAndWait();
@@ -84,17 +88,52 @@ public final class ConcurrentDemoDialog {
         btnLoad.setDisable(value);
         btnAdd.setDisable(value);
         btnClear.setDisable(value);
+        btnStats.setDisable(value);
         threadsField.setDisable(value);
         syncToggle.setDisable(value);
     }
 
-    private void onLoad(Stage owner) {
-        if (busy)
+    private void showTreeStats(Stage owner) {
+        if (busy) return;
+        if (treeDamaged) {
+            Dialogs.showError(owner, "Статистика недоступна",
+                    "Структура дерева могла быть повреждена. Очистите дерево или загрузите CSV.");
             return;
+        }
+
+        final BTree.FillStats stats;
+        try {
+            stats = tree.stats();
+        } catch (RuntimeException ex) {
+            treeDamaged = true;
+            Dialogs.showError(owner, "Ошибка статистики", String.valueOf(ex));
+            return;
+        }
+
+        String info = String.format(Locale.forLanguageTag("ru-RU"),
+                "Количество узлов: %d%n" +
+                        "Количество листьев: %d%n" +
+                        "Количество ключей: %d%n" +
+                        "Высота дерева: %d%n" +
+                        "Средняя заполненность: %.2f%%%n" +
+                        "Минимум ключей в узле: %d%n" +
+                        "Максимум ключей в узле: %d",
+                stats.nodes(), stats.leaves(), stats.totalKeys(), stats.height(),
+                stats.avgFill() * 100.0, stats.minKeys(), stats.maxKeys());
+
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.initOwner(owner);
+        alert.setTitle("Статистика B-дерева");
+        alert.setHeaderText("Статистика заполненности узлов");
+        alert.setContentText(info);
+        alert.showAndWait();
+    }
+
+    private void onLoad(Stage owner) {
+        if (busy) return;
 
         File file = InputDialogs.chooseOpenCsv(owner, null);
-        if (file == null)
-            return;
+        if (file == null) return;
 
         setBusy(true);
         visualizer.setTree(null);
@@ -134,8 +173,7 @@ public final class ConcurrentDemoDialog {
     }
 
     private void onAdd(Stage owner) {
-        if (busy)
-            return;
+        if (busy) return;
 
         if (treeDamaged) {
             Dialogs.showError(owner, "Повреждённое дерево",
@@ -209,8 +247,7 @@ public final class ConcurrentDemoDialog {
             boolean correct = r.isCorrect(expectedSize, expectedInsertions, expectedDuplicates);
 
             visualizer.setTree(tree);
-            if (visualizer.isCorrupted())
-                correct = false;
+            if (visualizer.isCorrupted()) correct = false;
 
             treeDamaged = !correct;
 

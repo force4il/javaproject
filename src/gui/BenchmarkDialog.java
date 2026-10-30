@@ -10,111 +10,85 @@ import javafx.stage.Stage;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CancellationException;
+import java.util.Locale;
 
+/** Замеры вставки и поиска для 1000, 10000 и 50000 товаров. */
 public final class BenchmarkDialog {
-
-    private static final int[] SIZES = {10_000, 100_000};
-    private static final double WIDTH = 560;
-    private static final double HEIGHT = 380;
-
-    private static final String MSG_RUNNING = "Выполняется…";
-    private static final String MSG_DONE    = "Готово";
-    private static final String MSG_CANCELLED = "Отменено";
+    private static final int[] SIZES = {1_000, 10_000, 50_000};
 
     private BenchmarkDialog() {}
 
     public static void show(Stage owner) {
         Dialog<Void> dlg = new Dialog<>();
         dlg.initOwner(owner);
-        dlg.setTitle("Замеры производительности");
+        dlg.setTitle("Скорость B-дерева");
         dlg.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
         dlg.setResizable(true);
 
-        //Инициализация таблицы и колонок
-        TableView<BenchmarkRunner.Row> tv = new TableView<>();
+        TableView<BenchmarkRunner.SpeedRow> table = new TableView<>();
+        table.getColumns().add(column("Элементов", r -> String.valueOf(r.elements())));
+        table.getColumns().add(column("Узлов", r -> String.valueOf(r.nodes())));
+        table.getColumns().add(column("Вставка всех, мс",
+                r -> fmt(r.insertMillis())));
+        table.getColumns().add(column("Вставка одной, мкс",
+                r -> fmt(r.averageInsertMicros())));
+        table.getColumns().add(column("Поиск одного, мкс",
+                r -> fmt(r.searchMicros())));
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        table.setPrefSize(900, 280);
 
-        TableColumn<BenchmarkRunner.Row, String> c1 = new TableColumn<>("Операция");
-        c1.setCellValueFactory(d -> new ReadOnlyStringWrapper(d.getValue().operation()));
+        Label info = new Label("Подготовка измерений...");
+        Label note = new Label("Поиск одного существующего артикула усреднён по 20 000 вызовам.");
+        ProgressBar progress = new ProgressBar(0);
+        progress.setPrefWidth(860);
+        VBox content = new VBox(10, info, progress, table, note);
+        content.setPadding(new Insets(12));
+        dlg.getDialogPane().setContent(content);
 
-        TableColumn<BenchmarkRunner.Row, String> c2 = new TableColumn<>("N");
-        c2.setCellValueFactory(d -> new ReadOnlyStringWrapper(String.valueOf(d.getValue().n())));
-
-        TableColumn<BenchmarkRunner.Row, String> c3 = new TableColumn<>("Время, мс");
-        c3.setCellValueFactory(d -> new ReadOnlyStringWrapper(
-                String.format("%.2f", d.getValue().millis())));
-
-        // добавляем колонки
-        tv.getColumns().addAll(c1, c2, c3);
-
-        tv.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
-        tv.setPrefSize(WIDTH, HEIGHT);
-
-        Label info = new Label(MSG_RUNNING);
-        ProgressBar pb = new ProgressBar();
-        pb.setPrefWidth(WIDTH - 40);
-
-        VBox box = new VBox(8, info, pb, tv);
-        box.setPadding(new Insets(12));
-        dlg.getDialogPane().setContent(box);
-
-        Task<Void> task = new Task<>() {
-            @Override protected Void call() {
-                List<BenchmarkRunner.Row> all = new ArrayList<>();
-                for (int n : SIZES) {
-                    if (isCancelled())
-                        break;
-
-                    updateMessage("N = " + n);
-
-                    List<BenchmarkRunner.Row> rows = BenchmarkRunner.run(
-                            n, System.nanoTime(), this::isCancelled);
-                    all.addAll(rows);
-
-                    if (isCancelled())
-                        break;
-
-                    //обновляем таблицу
-                    List<BenchmarkRunner.Row> snapshot = List.copyOf(all);
-                    Platform.runLater(() -> tv.getItems().setAll(snapshot));
+        Task<List<BenchmarkRunner.SpeedRow>> task = new Task<>() {
+            @Override protected List<BenchmarkRunner.SpeedRow> call() {
+                List<BenchmarkRunner.SpeedRow> result = new ArrayList<>();
+                for (int i = 0; i < SIZES.length; i++) {
+                    if (isCancelled()) break;
+                    int n = SIZES[i];
+                    updateMessage("Измерение: " + n + " элементов");
+                    BenchmarkRunner.SpeedRow row =
+                            BenchmarkRunner.runSpeed(n, 12345L + n, this::isCancelled);
+                    if (row == null) break;
+                    result.add(row);
+                    int completed = i + 1;
+                    updateProgress(completed, SIZES.length);
+                    Platform.runLater(() -> table.getItems().setAll(new ArrayList<>(result)));
                 }
-                if (isCancelled()) {
-                    throw new CancellationException("замер отменён");
-                }
-
-                return null;
+                return result;
             }
         };
-
-        // Обработчики состояний
+        info.textProperty().bind(task.messageProperty());
+        progress.progressProperty().bind(task.progressProperty());
         task.setOnSucceeded(e -> {
-            info.setText(MSG_DONE);
-            pb.setProgress(1);
+            info.textProperty().unbind();
+            info.setText(task.isCancelled() ? "Отменено" : "Измерения завершены");
         });
-
-        task.setOnCancelled(e -> {
-            info.setText(MSG_CANCELLED);
-            pb.setProgress(0);
-        });
-
         task.setOnFailed(e -> {
-            info.setText("Ошибка выполнения");
-            pb.setProgress(0);
-            Throwable ex = task.getException();
-            Dialogs.showError(owner, "Ошибка замера производительности",
-                    ex == null ? "Неизвестная ошибка" : ex.getMessage());
+            info.textProperty().unbind();
+            info.setText("Ошибка: " + task.getException());
         });
-
-        // Обновление текста прогресса
-        task.messageProperty().addListener((o, a, b) -> info.setText(b));
-
-        // Запуск
-        Thread t = new Thread(task, "benchmark");
-        t.setDaemon(true);
-        t.start();
-
-        // Отмена при закрытии диалога
         dlg.setOnCloseRequest(e -> task.cancel());
+
+        Thread thread = new Thread(task, "benchmark-speed");
+        thread.setDaemon(true);
+        thread.start();
         dlg.showAndWait();
+    }
+
+    private static TableColumn<BenchmarkRunner.SpeedRow, String> column(
+            String title, java.util.function.Function<BenchmarkRunner.SpeedRow, String> getter) {
+        TableColumn<BenchmarkRunner.SpeedRow, String> col = new TableColumn<>(title);
+        col.setCellValueFactory(d -> new ReadOnlyStringWrapper(getter.apply(d.getValue())));
+        return col;
+    }
+
+    private static String fmt(double value) {
+        return String.format(Locale.forLanguageTag("ru-RU"), "%.3f", value);
     }
 }

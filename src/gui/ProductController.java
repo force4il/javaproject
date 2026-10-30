@@ -4,6 +4,7 @@ import csv.CsvLoader;
 import exceptions.TreeOperationException;
 import exceptions.TreeStateException;
 import javafx.concurrent.Task;
+import javafx.scene.control.Alert;
 import javafx.scene.layout.BorderPane;
 import javafx.stage.Stage;
 import model.CatalogItem;
@@ -21,20 +22,20 @@ import java.util.List;
 
 public final class ProductController {
 
-    private static final String TITLE_LOAD = "Загрузка";
-    private static final String TITLE_SAVE = "Сохранение";
-    private static final String TITLE_ADD = "Добавление";
-    private static final String TITLE_EDIT = "Изменение";
-    private static final String TITLE_DEL = "Удаление";
-    private static final String TITLE_GEN = "Генерация";
-    private static final String TITLE_SEARCH = "Поиск";
-    private static final String TITLE_RANGE = "Диапазон";
+    private static final String TITLE_LOAD    = "Загрузка";
+    private static final String TITLE_SAVE    = "Сохранение";
+    private static final String TITLE_ADD     = "Добавление";
+    private static final String TITLE_EDIT    = "Изменение";
+    private static final String TITLE_DEL     = "Удаление";
+    private static final String TITLE_GEN     = "Генерация";
+    private static final String TITLE_SEARCH  = "Поиск";
+    private static final String TITLE_RANGE   = "Диапазон";
     private static final String TITLE_CONFIRM = "Очистка дерева";
 
-    private final Stage stage;
-    private final ProductView view = new ProductView();
-    private final TreeService tree = new TreeService();
-    private final FileService files = new FileService();
+    private final Stage            stage;
+    private final ProductView      view    = new ProductView();
+    private final TreeService      tree    = new TreeService();
+    private final FileService      files   = new FileService();
     private final GeneratorService generator = new GeneratorService();
     private final OperationSupport ops;
 
@@ -42,7 +43,7 @@ public final class ProductController {
 
     public ProductController(Stage stage) {
         this.stage = stage;
-        this.ops = new OperationSupport(stage, view);
+        this.ops   = new OperationSupport(stage, view);
         ops.setOnIdle(this::refreshSelectionButtons);
 
         view.table.getSelectionModel().selectedItemProperty()
@@ -55,6 +56,7 @@ public final class ProductController {
         view.delButton.setOnAction(e -> onDelete());
         view.genButton.setOnAction(e -> onGenerate());
         view.benchButton.setOnAction(e -> BenchmarkDialog.show(stage));
+        view.statsButton.setOnAction(e -> showNodeStats());
         view.raceDemoButton.setOnAction(e -> ConcurrentDemoDialog.show(stage));
         view.clearButton.setOnAction(e -> onClear());
         view.rangeButton.setOnAction(e -> onRange());
@@ -66,18 +68,19 @@ public final class ProductController {
 
     private void onLoad() {
         File file = InputDialogs.chooseOpenCsv(stage, currentFile);
-        if (file == null)
-            return;
-
+        if (file == null) return;
         if (!tree.isEmpty() && !Dialogs.confirm(stage, TITLE_LOAD,
-                "Текущее дерево будет очищено. Продолжить?"))
-            return;
+                "Текущее дерево будет очищено. Продолжить?")) return;
 
         Path path = file.toPath();
         Task<CsvLoader.LoadResult> task = files.loadTask(path);
         ops.run(task, "Загрузка…", result -> {
             try {
-                tree.replaceAll(result.items());
+                // FileService только читает CSV; заполняем дерево после чтения.
+                tree.clear();
+                for (CatalogItem item : result.items()) {
+                    tree.insertIfAbsent(item);
+                }
                 currentFile = path;
                 refreshAll();
                 ops.setStatus("Загружено: " + path.getFileName()
@@ -92,9 +95,7 @@ public final class ProductController {
 
     private void onSave() {
         File file = InputDialogs.chooseSaveCsv(stage, currentFile);
-        if (file == null)
-            return;
-
+        if (file == null) return;
         Path path = file.toPath();
         List<CatalogItem> snapshot = new ArrayList<>(tree.all());
 
@@ -113,6 +114,7 @@ public final class ProductController {
                 refreshAll();
                 ops.setStatus("Добавлено: " + p.getItemNumber());
             } catch (TreeOperationException ex) {
+                // сюда попадём только если insert упал по другой причине
                 Dialogs.showTreeError(stage, TITLE_ADD, ex);
             }
         });
@@ -122,16 +124,13 @@ public final class ProductController {
         try {
             return tree.search(key) != null;
         } catch (TreeOperationException e) {
-            throw new IllegalArgumentException(
-                    "keyExists called with invalid key=" + key, e);
+            return false;   // ключ < 1 — сюда не попадём после validate()
         }
     }
 
     private void onEdit() {
         CatalogItem sel = view.table.getSelectionModel().getSelectedItem();
-        if (!(sel instanceof Product existing))
-            return;
-
+        if (!(sel instanceof Product existing)) return;
         ProductDialog d = new ProductDialog(stage, existing, this::keyExists);
         d.showAndWait().ifPresent(updated -> {
             try {
@@ -146,9 +145,7 @@ public final class ProductController {
 
     private void onDelete() {
         CatalogItem sel = view.table.getSelectionModel().getSelectedItem();
-        if (sel == null)
-            return;
-
+        if (sel == null) return;
         try {
             tree.deleteIfExists(sel.getItemNumber());
             refreshAll();
@@ -160,9 +157,7 @@ public final class ProductController {
 
     private void onSearch() {
         String s = view.searchField.getText().trim();
-        if (s.isEmpty())
-            return;
-
+        if (s.isEmpty()) return;
         int key;
         try { key = Integer.parseInt(s); }
         catch (NumberFormatException e) {
@@ -196,9 +191,9 @@ public final class ProductController {
 
     private void onRange() {
         String fromText = view.rangeFrom.getText();
-        String toText = view.rangeTo.getText();
+        String toText   = view.rangeTo.getText();
         Integer from = InputDialogs.parseOrNull(fromText);
-        Integer to = InputDialogs.parseOrNull(toText);
+        Integer to   = InputDialogs.parseOrNull(toText);
 
         if (from == null || to == null) {
             String msg = (InputDialogs.isBlank(fromText) || InputDialogs.isBlank(toText))
@@ -224,54 +219,25 @@ public final class ProductController {
 
     private void onGenerate() {
         int count = InputDialogs.askGenCount(stage);
-        if (count <= 0)
-            return;
-
+        if (count <= 0) return;
         long seed = System.nanoTime();
-        Task<List<CatalogItem>> task = new Task<>() {
-            @Override
-            protected List<CatalogItem> call() {
-                TreeService temporary = new TreeService();
 
-                generator.generate(temporary, count, seed,
-                        i -> updateProgress(i, count),
-                        this::isCancelled
-                );
-                if (isCancelled()) {
-                    throw new java.util.concurrent.CancellationException("генерация отменена");
-                }
-
-                updateProgress(count, count);
-                return temporary.all();
+        Task<Integer> task = new Task<>() {
+            @Override protected Integer call() {
+                return generator.generate(tree, count, seed,
+                        i -> updateProgress(i, count), this::isCancelled);
             }
         };
-
-        ops.run(task, "Генерация…", generated -> {
-            int inserted = 0;
-            try {
-                for (CatalogItem item : generated) {
-                    if (tree.insertIfAbsent(item))
-                        inserted++;
-                }
-            } catch (TreeOperationException ex) {
-                refreshAll();
-                Dialogs.showTreeError(stage, TITLE_GEN, ex);
-                return;
-            }
-
+        ops.run(task, "Генерация…", inserted -> {
             refreshAll();
             ops.setStatus("Сгенерировано: " + inserted + " (seed=" + seed + ")");
         }, TITLE_GEN);
     }
 
     private void onClear() {
-        if (tree.isEmpty())
-            return;
-
+        if (tree.isEmpty()) return;
         if (!Dialogs.confirm(stage, TITLE_CONFIRM,
-                "Текущее дерево будет очищено. Продолжить?"))
-            return;
-
+                "Текущее дерево будет очищено. Продолжить?")) return;
         tree.clear();
         refreshAll();
         ops.setStatus("Очищено");
@@ -285,6 +251,24 @@ public final class ProductController {
 
     private void refreshTable() {
         view.items.setAll(tree.all());
+    }
+
+    private void showNodeStats() {
+        try {
+            BTree.FillStats s = tree.stats();
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.initOwner(stage);
+            alert.setTitle("Статистика B-дерева");
+            alert.setHeaderText("Заполненность узлов");
+            alert.setContentText(String.format(java.util.Locale.forLanguageTag("ru-RU"),
+                    "Узлов: %d%nЛистьев: %d%nКлючей: %d%nВысота: %d%n" +
+                            "Средняя заполненность: %.2f%nМинимум ключей: %d%nМаксимум ключей: %d",
+                    s.nodes(), s.leaves(), s.totalKeys(), s.height(),
+                    s.avgFill(), s.minKeys(), s.maxKeys()));
+            alert.showAndWait();
+        } catch (RuntimeException ex) {
+            Dialogs.showError(stage, "Ошибка статистики", String.valueOf(ex));
+        }
     }
 
     private void updateStats() {
