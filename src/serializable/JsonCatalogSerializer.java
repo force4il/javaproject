@@ -1,19 +1,25 @@
-
 package serializable;
 
-import com.fasterxml.jackson.databind.*;
-import com.fasterxml.jackson.databind.node.*;
+import com.fasterxml.jackson.core.JsonLocation;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.JsonToken;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import model.*;
 
 import java.io.*;
 import java.nio.file.*;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.time.Instant;
 import java.util.*;
 
-public final class JsonCatalogSerializer
-        implements Serializer<List<CatalogItem>> {
+public final class JsonCatalogSerializer implements Serializer<List<CatalogItem>> {
+
+    public static final int SCHEMA_VERSION = 1;
+
+    private static final String FIELD_SCHEMA_VERSION = "schema_version";
+    private static final String FIELD_ITEMS = "items";
 
     private final ObjectMapper mapper = new ObjectMapper();
 
@@ -22,21 +28,10 @@ public final class JsonCatalogSerializer
         return "json";
     }
 
-    private static String sha256(byte[] bytes)
-            throws IOException {
-        try {
-            byte[] digest = MessageDigest.getInstance("SHA-256").digest(bytes);
-            return HexFormat.of().formatHex(digest);
-        } catch (NoSuchAlgorithmException ex) {
-            throw new IOException("SHA-256 недоступен", ex);
-        }
-    }
-
     private static JsonNode required(JsonNode node, String key) throws IOException {
         JsonNode value = node.get(key);
         if (value == null || value.isNull())
             throw new IOException("Отсутствует поле: " + key);
-
         return value;
     }
 
@@ -44,7 +39,6 @@ public final class JsonCatalogSerializer
         JsonNode value = required(node, key);
         if (!value.isTextual())
             throw new IOException("Ожидается строка: " + key);
-
         return value.textValue();
     }
 
@@ -52,64 +46,48 @@ public final class JsonCatalogSerializer
         JsonNode value = required(node, key);
         if (!value.isIntegralNumber() || !value.canConvertToInt())
             throw new IOException("Ожидается int: " + key);
-
         return value.intValue();
     }
 
     @Override
-    public void save(List<CatalogItem> data, Path file, int version) throws IOException {
-        CatalogCodec.requireValidVersion(version, "JSON");
+    public void save(List<CatalogItem> data, Path file) throws IOException {
         List<CatalogItem> items = CatalogCodec.checked(data);
-        CatalogCodec.checkVersionItems(items, version);
 
         ObjectNode root = mapper.createObjectNode();
-        root.put("schema_version", version);
-        ArrayNode array = root.putArray("items");
+        root.put(FIELD_SCHEMA_VERSION, SCHEMA_VERSION);
+        ArrayNode array = root.putArray(FIELD_ITEMS);
 
         for (CatalogItem item : items) {
             CatalogCodec.checkCancelled();
 
             ObjectNode node = array.addObject();
-            if (version >= 2)
-                node.put("type", item.getType().getCsvName());
-
+            node.put("type", item.getType().getCsvName());
             node.put("itemNumber", item.getItemNumber());
             node.put("productName", item.getProductName());
             node.put("category", item.getCategory());
             node.put("price", item.getPrice());
             node.put("remainder", item.getRemainder());
 
-            if (version >= 2 && item instanceof ProductWithWarranty warranty) {
+            if (item instanceof ProductWithWarranty warranty) {
                 node.put("startOfWarranty", warranty.getStartOfWarranty().toString());
                 node.put("warrantyMonths", warranty.getWarrantyMonths());
             }
-        }
-
-        if (version == 3) {
-            ObjectNode metadata = root.putObject("metadata");
-            metadata.put("exported_at", Instant.now().toString());
-            metadata.put("item_count", items.size());
-            metadata.put("sha256", sha256(mapper.writeValueAsBytes(array)));
         }
 
         Path target = file.toAbsolutePath();
         Path temp = Files.createTempFile(target.getParent(), ".catalog-", ".tmp");
         try {
             try (OutputStream out = new FilterOutputStream(Files.newOutputStream(temp)) {
-
-                @Override
-                public void write(int b) throws IOException {
+                @Override public void write(int b) throws IOException {
                     CatalogCodec.checkCancelled();
                     this.out.write(b);
                 }
-
-                @Override
-                public void write(byte[] bytes, int offset, int length) throws IOException {
+                @Override public void write(byte[] bytes, int off, int len) throws IOException {
                     CatalogCodec.checkCancelled();
-                    this.out.write(bytes, offset, length); }}) {
-
-                mapper.writerWithDefaultPrettyPrinter()
-                        .writeValue(out, root);
+                    this.out.write(bytes, off, len);
+                }
+            }) {
+                mapper.writerWithDefaultPrettyPrinter().writeValue(out, root);
             }
 
             CatalogCodec.checkCancelled();
@@ -122,75 +100,142 @@ public final class JsonCatalogSerializer
     }
 
     @Override
-    public Loaded<List<CatalogItem>> load(Path file) throws IOException {
-        if (Files.size(file) > CatalogCodec.MAX_FILE_BYTES) {
+    public List<CatalogItem> load(Path file) throws IOException {
+        if (Files.size(file) > CatalogCodec.MAX_FILE_BYTES)
             throw new IOException("JSON превышает лимит 256 МиБ");
-        }
 
-        JsonNode root;
-        try (InputStream in = new InterruptibleInputStream(
-                new BoundedInputStream(Files.newInputStream(file), CatalogCodec.MAX_FILE_BYTES))) {
+        List<CatalogItem> result = new ArrayList<>();
+        Map<Integer, Integer> keyLines = new HashMap<>();
+        boolean foundItems = false;
 
-            root = mapper.readTree(in);
-        }
+        try (InputStream raw = new InterruptibleInputStream(
+                new BoundedInputStream(Files.newInputStream(file), CatalogCodec.MAX_FILE_BYTES));
+             JsonParser parser = mapper.getFactory().createParser(raw)) {
 
-        CatalogCodec.checkCancelled();
-        if (root == null || !root.isObject())
-            throw new IOException("Некорректный корень JSON");
+            if (parser.nextToken() != JsonToken.START_OBJECT)
+                throw new IOException("Некорректный корень JSON: ожидался объект (строка " + lineOf(parser) + ")");
 
-        int version = integer(root, "schema_version");
-        CatalogCodec.requireValidVersion(version, "JSON");
+            JsonToken token;
+            while ((token = parser.nextToken()) != null) {
+                if (token == JsonToken.END_OBJECT)
+                    break;
 
-        JsonNode array = required(root, "items");
-        if (!array.isArray() || array.size() > CatalogCodec.MAX_ITEMS)
-            throw new IOException("Некорректный массив items");
+                if (token != JsonToken.FIELD_NAME)
+                    throw new IOException("Некорректный JSON: ожидалось имя поля (строка " + lineOf(parser) + ")");
 
-        if (version == 3) {
-            JsonNode metadata = required(root, "metadata");
+                String fieldName = parser.currentName();
+                JsonToken valueToken = parser.nextToken();
 
-            if (!metadata.isObject())
-                throw new IOException("Некорректный metadata");
+                if (FIELD_ITEMS.equals(fieldName)) {
+                    foundItems = true;
+                    if (valueToken != JsonToken.START_ARRAY)
+                        throw new IOException("Поле " + FIELD_ITEMS
+                                + " должно быть массивом (строка " + lineOf(parser) + ")");
+                    readItems(parser, result, keyLines);
 
-            if (integer(metadata, "item_count") != array.size())
-                throw new IOException("Не совпадает item_count");
+                } else if (FIELD_SCHEMA_VERSION.equals(fieldName)) {
+                    if (valueToken != JsonToken.VALUE_NUMBER_INT)
+                        throw new IOException("Поле " + FIELD_SCHEMA_VERSION
+                                + " должно быть целым числом (строка " + lineOf(parser) + ")");
 
-            try {
-                Instant.parse(string(metadata, "exported_at"));
-            } catch (RuntimeException ex) {
-                throw new IOException("Некорректный exported_at", ex);
+                    int version = parser.getIntValue();
+                    validateSchemaVersion(version);
+
+                } else {
+                    parser.skipChildren();
+                }
             }
 
-            String expected = string(metadata, "sha256");
-            String actual = sha256(mapper.writeValueAsBytes(array));
-            if (!actual.equals(expected))
-                throw new IOException("Нарушена целостность JSON (SHA-256)");
+            if (!foundItems)
+                throw new IOException("Отсутствует поле: " + FIELD_ITEMS);
+
+            if (parser.nextToken() != null)
+                throw new IOException("Лишние данные после корневого объекта (строка "
+                        + lineOf(parser) + ")");
+
+        } catch (JsonProcessingException ex) {
+            throw jsonError(ex);
         }
 
-        List<CatalogItem> result = new ArrayList<>(array.size());
-        for (JsonNode node : array) {
-            CatalogCodec.checkCancelled();
+        return List.copyOf(result);
+    }
 
-            if (!node.isObject())
-                throw new IOException("Запись должна быть объектом JSON");
+    private static void validateSchemaVersion(int version) throws IOException {
+        if (version > SCHEMA_VERSION)
+            throw new IOException("JSON-файл создан в более новой версии приложения: "
+                    + "schema_version=" + version + " > " + SCHEMA_VERSION
+                    + ". Обновите приложение или сохраните файл в текущей версии.");
 
-            String type = version == 1 ? "Product" : string(node, "type");
-            if (version == 1 && node.has("type"))
-                throw new IOException("Поле type не предусмотрено в v1");
+        if (version < 1)
+            throw new IOException("Некорректная версия схемы JSON: schema_version=" + version);
 
-            String start = "Warranty".equals(type) ? string(node, "startOfWarranty") : null;
-            Integer months = "Warranty".equals(type) ? integer(node, "warrantyMonths") : null;
-            CatalogItem item = CatalogCodec.create(
-                    type, integer(node, "itemNumber"), string(node, "productName"),
-                    string(node, "category"), integer(node, "price"),
-                    integer(node, "remainder"), start, months
-            );
+        if (version < SCHEMA_VERSION)
+            throw new IOException("JSON-файл версии " + version
+                    + " не поддерживается текущей версией (ожидается " + SCHEMA_VERSION
+                    + "). Требуется миграция.");
+    }
 
-            result.add(item);
+    /** Читает массив items по одному элементу, отслеживая строку каждого */
+    private void readItems(JsonParser parser, List<CatalogItem> result,
+                           Map<Integer, Integer> keyLines) throws IOException {
+        JsonToken token;
+        while ((token = parser.nextToken()) != JsonToken.END_ARRAY) {
+            if (token == null)
+                throw new IOException("Неожиданный конец файла в массиве items");
+
+            int line = lineOf(parser);
+            JsonNode node = mapper.readTree(parser);
+            try {
+                CatalogItem item = parseItem(node);
+                Integer prev = keyLines.putIfAbsent(item.getItemNumber(), line);
+                if (prev != null)
+                    throw new IOException("повтор артикула " + item.getItemNumber()
+                            + " (первое вхождение в строке " + prev + ")");
+                if (result.size() >= CatalogCodec.MAX_ITEMS)
+                    throw new IOException("Превышен лимит " + CatalogCodec.MAX_ITEMS + " записей");
+                result.add(item);
+            } catch (IOException ex) {
+                throw new IOException("Строка " + line + ": " + ex.getMessage(), ex);
+            }
+        }
+    }
+
+    private static final Set<String> KNOWN_ITEM_FIELDS = Set.of(
+            "type", "itemNumber", "productName", "category",
+            "price", "remainder", "startOfWarranty", "warrantyMonths");
+
+    private CatalogItem parseItem(JsonNode node) throws IOException {
+        if (!node.isObject())
+            throw new IOException("Запись должна быть объектом JSON");
+
+        Iterator<String> it = node.fieldNames();
+        while (it.hasNext()) {
+            String name = it.next();
+            if (!KNOWN_ITEM_FIELDS.contains(name))
+                throw new IOException("Неизвестное поле в записи: \"" + name + "\"");
         }
 
-        List<CatalogItem> checked = CatalogCodec.checked(result);
-        CatalogCodec.checkVersionItems(checked, version);
+        String type = node.has("type") ? string(node, "type") : "Product";
+        String start = "Warranty".equals(type) ? string(node, "startOfWarranty") : null;
+        Integer months = "Warranty".equals(type) ? integer(node, "warrantyMonths") : null;
 
-        return new Loaded<>(checked, version);
+        return CatalogCodec.create(
+                type, integer(node, "itemNumber"), string(node, "productName"),
+                string(node, "category"), integer(node, "price"),
+                integer(node, "remainder"), start, months);
+    }
+
+    private static int lineOf(JsonParser parser) {
+        JsonLocation loc = parser.currentLocation();
+        return loc == null ? -1 : loc.getLineNr();
+    }
+
+    private static IOException jsonError(JsonProcessingException ex) {
+        JsonLocation loc = ex.getLocation();
+        String msg = loc != null
+                ? "Ошибка разбора JSON (строка " + loc.getLineNr()
+                + ", колонка " + loc.getColumnNr() + "): " + ex.getOriginalMessage()
+                : "Ошибка разбора JSON: " + ex.getOriginalMessage();
+        return new IOException(msg, ex);
     }
 }

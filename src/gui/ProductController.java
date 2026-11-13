@@ -152,17 +152,12 @@ public final class ProductController {
         if (file == null)
             return;
 
-        Integer version = InputDialogs.askExportVersion(stage);
-        if (version == null)
-            return;
         try {
             Serializer<List<CatalogItem>> serializer = serializerFor(file);
             var snapshot = new ArrayList<>(tree.all());
 
-            ops.run(serialization.saveTask(serializer, snapshot, file.toPath(), version), "Экспорт…",
-                    ignored -> ops.setStatus("Экспортировано: " + file.getName() + " (v" + version + ")"),
-                    "Экспорт"
-            );
+            ops.run(serialization.saveTask(serializer, snapshot, file.toPath()), "Экспорт…",
+                    ignored -> ops.setStatus("Экспортировано: " + file.getName()), "Экспорт");
         } catch (IllegalArgumentException ex) {
             Dialogs.showError(stage, "Экспорт", ex.getMessage());
         }
@@ -186,20 +181,18 @@ public final class ProductController {
                     if (!tree.isEmpty()) {
                         String message = "Файл: " + file.getName() + "\n"
                                 + "Формат: " + serializer.format() + "\n"
-                                + "Версия схемы: " + loaded.version() + "\n"
-                                + "Записей в файле: " + loaded.data().size() + "\n\n"
+                                + "Записей в файле: " + loaded.size() + "\n\n"
                                 + "Текущее дерево будет заменено. Продолжить?";
                         if (!Dialogs.confirm(stage, "Импорт", message)) {
-                            ops.setStatus("Импорт отменён (v" + loaded.version() + ")");
+                            ops.setStatus("Импорт отменён");
                             return;
                         }
                     }
 
                     try {
-                        tree.replaceAll(loaded.data());
+                        tree.replaceAll(loaded);
                         refreshAll();
-                        ops.setStatus("Импортировано: " + loaded.data().size() + " записей из " + file.getName()
-                                + " (версия " + loaded.version() + ")");
+                        ops.setStatus("Импортировано: " + loaded.size() + " записей из " + file.getName());
                     } catch (TreeOperationException ex) {
                         Dialogs.showTreeError(stage, "Импорт", ex);
                     }

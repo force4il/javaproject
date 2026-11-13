@@ -1,23 +1,16 @@
-
 package serializable;
 
 import model.CatalogItem;
-import model.ProductWithWarranty;
 
 import java.io.*;
-import java.nio.ByteBuffer;
-import java.nio.charset.*;
 import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.CancellationException;
-import java.util.zip.CRC32;
-import java.util.zip.CheckedInputStream;
-import java.util.zip.CheckedOutputStream;
 
 public final class BinaryCatalogSerializer implements Serializer<List<CatalogItem>> {
 
-    private static final int MAGIC = 0x42545245;
-    private static final int MAX_STRING_BYTES = 16 * 1024 * 1024;
+    public static final int SCHEMA_VERSION = 1;
+    private static final int HEADER_MAGIC = 0x42434154;
 
     @Override
     public String format() {
@@ -29,82 +22,31 @@ public final class BinaryCatalogSerializer implements Serializer<List<CatalogIte
             throw new CancellationException("Операция отменена");
     }
 
-    private static void writeString(DataOutputStream out, String value) throws IOException {
-        byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
-        if (bytes.length > MAX_STRING_BYTES)
-            throw new IOException("Слишком длинная строка");
-
-        out.writeInt(bytes.length);
-        out.write(bytes);
-    }
-
-    private static String readString(DataInputStream in) throws IOException {
-        int length = in.readInt();
-        if (length < 0 || length > MAX_STRING_BYTES)
-            throw new IOException("Недопустимая длина строки: " + length);
-
-        byte[] bytes = new byte[length];
-        in.readFully(bytes);
-
-        try {
-            return StandardCharsets.UTF_8.newDecoder()
-                    .onMalformedInput(CodingErrorAction.REPORT)
-                    .onUnmappableCharacter(CodingErrorAction.REPORT)
-                    .decode(ByteBuffer.wrap(bytes))
-                    .toString();
-        } catch (CharacterCodingException ex) {
-            throw new IOException("Некорректная кодировка UTF-8", ex);
-        }
-    }
-
     @Override
-    public void save(List<CatalogItem> data, Path file, int version) throws IOException {
-        CatalogCodec.requireValidVersion(version, "BIN");
+    public void save(List<CatalogItem> data, Path file) throws IOException {
         List<CatalogItem> items = CatalogCodec.checked(data);
-        CatalogCodec.checkVersionItems(items, version);
 
         Path target = file.toAbsolutePath();
         Path parent = target.getParent();
-
         Path temp = Files.createTempFile(parent, ".catalog-", ".tmp");
         try {
-            try (DataOutputStream out = new DataOutputStream(
+            try (ObjectOutputStream out = new ObjectOutputStream(
                     new BufferedOutputStream(Files.newOutputStream(temp)))) {
+                out.writeInt(HEADER_MAGIC);
+                out.writeInt(SCHEMA_VERSION);
 
-                out.writeInt(MAGIC);
-                out.writeInt(version);
-                out.writeInt(items.size());
-                if (version == 3)
-                    out.writeLong(System.currentTimeMillis());
-
-                CRC32 crc = new CRC32();
-                DataOutputStream records = version == 3 ? new DataOutputStream(new CheckedOutputStream(out, crc)) : out;
-                for (CatalogItem item : items) {
+                for (CatalogItem ignored : items)
                     checkCancelled();
-                    if (version >= 2)
-                        writeString(records, item.getType().getCsvName());
 
-                    records.writeInt(item.getItemNumber());
-                    writeString(records, item.getProductName());
-                    writeString(records, item.getCategory());
-                    records.writeInt(item.getPrice());
-                    records.writeInt(item.getRemainder());
-                    if (version >= 2 && item instanceof ProductWithWarranty warranty) {
-                        writeString(records, warranty.getStartOfWarranty().toString());
-                        records.writeInt(warranty.getWarrantyMonths());
-                    }
-                }
-
-                records.flush();
-                if (version == 3)
-                    out.writeLong(crc.getValue());
+                out.writeObject(new ArrayList<>(items));
+                out.flush();
             }
 
             checkCancelled();
             try {
                 Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
             } catch (AtomicMoveNotSupportedException ex) {
-                throw new IOException("Файловая система не поддерживает " + "атомарное сохранение", ex);
+                throw new IOException("Файловая система не поддерживает атомарное сохранение", ex);
             }
         } finally {
             Files.deleteIfExists(temp);
@@ -112,72 +54,90 @@ public final class BinaryCatalogSerializer implements Serializer<List<CatalogIte
     }
 
     @Override
-    public Serializer.Loaded<List<CatalogItem>> load(Path file) throws IOException {
+    @SuppressWarnings("unchecked")
+    public List<CatalogItem> load(Path file) throws IOException {
         if (Files.size(file) > CatalogCodec.MAX_FILE_BYTES)
             throw new IOException("BIN превышает лимит 256 МиБ");
 
-        try (DataInputStream in = new DataInputStream(new BufferedInputStream(
-                new InterruptibleInputStream(new BoundedInputStream(
-                        Files.newInputStream(file), CatalogCodec.MAX_FILE_BYTES))
-        ))) {
-            if (in.readInt() != MAGIC)
-                throw new IOException("Неверная сигнатура BIN");
+        try (InputStream raw = new InterruptibleInputStream(new BoundedInputStream(
+                Files.newInputStream(file), CatalogCodec.MAX_FILE_BYTES))) {
 
-            int version = in.readInt();
-            CatalogCodec.requireValidVersion(version, "BIN");
-            int count = in.readInt();
-            if (count < 0 || count > CatalogCodec.MAX_ITEMS)
-                throw new IOException("Недопустимое количество товаров");
+            Object data = readObjectStream(raw);
 
-            if (version == 3) {
-                long timestamp = in.readLong();
-                if (timestamp < 0)
-                    throw new IOException("Некорректная дата экспорта");
-            }
+            if (!(data instanceof List<?> list))
+                throw new IOException("BIN-файл повреждён: ожидался список товаров");
 
-            CRC32 crc = new CRC32();
-            DataInputStream records = version == 3 ? new DataInputStream(new CheckedInputStream(in, crc)) : in;
-            List<CatalogItem> result = new ArrayList<>(count);
-            for (int i = 0; i < count; i++) {
-                checkCancelled();
+            for (Object obj : list)
+                if (!(obj instanceof CatalogItem))
+                    throw new IOException("BIN-файл повреждён: элемент не является товаром");
 
-                String type = version == 1 ? "Product" : readString(records);
-                int id = records.readInt();
-                String name = readString(records);
-                String category = readString(records);
-                int price = records.readInt();
-                int remainder = records.readInt();
-
-                String start = null;
-                Integer months = null;
-                if ("Warranty".equals(type)) {
-                    start = readString(records);
-                    months = records.readInt();
-                }
-
-                CatalogItem item = CatalogCodec.create(type, id, name, category,
-                        price, remainder, start, months);
-
-                result.add(item);
-            }
-
-            if (version == 3) {
-                long expected = in.readLong();
-                if (expected != crc.getValue())
-                    throw new IOException("Нарушена целостность BIN (CRC32)");
-            }
-
-            checkCancelled();
-            if (in.read() != -1)
-                throw new IOException("Лишние данные в конце файла");
-
-            List<CatalogItem> checked = CatalogCodec.checked(result);
-            CatalogCodec.checkVersionItems(checked, version);
-
-            return new Serializer.Loaded<>(checked, version);
-
-        } catch (EOFException ex) {
-            throw new IOException("BIN-файл повреждён или обрезан", ex);
+            return CatalogCodec.checked((List<CatalogItem>) list);
         }
+    }
+
+    private static Object readObjectStream(InputStream raw) throws IOException {
+        try (ObjectInputStream in = new ObjectInputStream(new BufferedInputStream(raw))) {
+            readAndValidateHeader(in);
+
+            Object data;
+            try {
+                data = in.readObject();
+            } catch (InvalidClassException ex) {
+                throw new BinLoadException(
+                        "BIN-файл несовместим с текущей версией приложения (не совпадает serialVersionUID). Пересохраните файл", ex);
+            } catch (ClassNotFoundException ex) {
+                throw new BinLoadException("BIN-файл повреждён: неизвестный класс", ex);
+            }
+
+            if (in.read() != -1)
+                throw new BinLoadException("лишние данные в конце файла");
+
+            CatalogCodec.checkCancelled();
+            return data;
+
+        } catch (BinLoadException ex) {
+            throw ex;
+        } catch (IOException | RuntimeException ex) {
+            throw new IOException("BIN-файл повреждён", ex);
+        }
+    }
+
+    private static void readAndValidateHeader(ObjectInputStream in) throws IOException {
+        int magic, version;
+        try {
+            magic = in.readInt();
+            version = in.readInt();
+        } catch (EOFException ex) {
+            throw new BinLoadException("BIN-файл повреждён: заголовок обрезан", ex);
+        } catch (IOException ex) {
+            throw new BinLoadException(
+                    "BIN-файл не содержит заголовка схемы (вероятно, создан старой версией приложения). "
+                            + "Пересохраните файл.", ex);
+        }
+
+        if (magic != HEADER_MAGIC)
+            throw new BinLoadException(
+                    "BIN-файл не является каталогом: неверный заголовок "
+                            + "(возможно, создан старой версией без заголовка; пересохраните файл)");
+
+        if (version > SCHEMA_VERSION)
+            throw new BinLoadException(
+                    "BIN-файл создан в более новой версии приложения: "
+                            + "schema_version=" + version + " > " + SCHEMA_VERSION
+                            + ". Обновите приложение или сохраните файл в текущей версии.");
+
+        if (version < SCHEMA_VERSION)
+            throw new BinLoadException(
+                    "BIN-файл версии " + version
+                            + " не поддерживается текущей версией (ожидается " + SCHEMA_VERSION
+                            + "). Требуется миграция.");
+
+        if (version < 1)
+            throw new BinLoadException("Некорректная версия схемы BIN: schema_version=" + version);
+    }
+
+    private static final class BinLoadException extends IOException {
+        BinLoadException(String message) { super(message); }
+        BinLoadException(String message, Throwable cause) { super(message, cause); }
     }
 }

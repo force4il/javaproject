@@ -16,8 +16,8 @@ public class Product implements Editable, CatalogItem {
     protected int remainder;
 
     public static final int MIN_ITEM_NUMBER = 1;
-    public static final int MIN_NUM_BORDER  = 0;
-    public static final int MAX_REMAINDER   = 100;
+    public static final int MIN_NUM_BORDER = 0;
+    public static final int MAX_REMAINDER = 100;
 
     public Product(long itemNumber, String productName, String category,
                    long price, int remainder) {

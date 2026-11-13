@@ -7,35 +7,18 @@ import java.time.format.DateTimeParseException;
 import java.util.*;
 
 final class CatalogCodec {
-    static final int CURRENT_VERSION = 3;
     static final int MAX_ITEMS = 1000000;
     static final long MAX_FILE_BYTES = 256L * 1024 * 1024;
 
     private CatalogCodec() {}
-
-    static void requireValidVersion(int version, String formatName) throws IOException {
-        if (version < 1 || version > CURRENT_VERSION) {
-            throw new IOException("Неподдерживаемая версия " + formatName + ": " + version
-                    + " (допустимы 1.." + CURRENT_VERSION + ")"
-            );
-        }
-    }
 
     static void checkCancelled() {
         if (Thread.currentThread().isInterrupted())
             throw new java.util.concurrent.CancellationException("Операция отменена");
     }
 
-    static void checkVersionItems(List<CatalogItem> items, int version) throws IOException {
-        if (version == 1) {
-            for (CatalogItem item : items)
-                if (item.getType() != EntityType.PRODUCT)
-                    throw new IOException("Версия v1 поддерживает только Product; артикул: "
-                            + item.getItemNumber());
-        }
-    }
-
-    static CatalogItem create(String type, long id, String name, String category, long price, int stock, String start, Integer months) throws IOException {
+    static CatalogItem create(String type, long id, String name, String category,
+                              long price, int stock, String start, Integer months) throws IOException {
         if (id < 1 || id > Integer.MAX_VALUE)
             throw new IOException("Некорректный артикул: " + id);
         if (price < 0 || price > Integer.MAX_VALUE)
@@ -54,14 +37,15 @@ final class CatalogCodec {
                 case "Warranty" -> {
                     if (start == null || months == null)
                         throw new IOException("Нет данных гарантии для товара " + id);
-
-                    yield new ProductWithWarranty(id, name, category, price, stock, LocalDate.parse(start), months);
+                    yield new ProductWithWarranty(id, name, category, price, stock,
+                            LocalDate.parse(start), months);
                 }
                 case "Discontinued" -> new DiscontinuedProduct(id, name, category, price, stock);
                 default -> throw new IOException("Неизвестный тип: " + type);
             };
         } catch (DateTimeParseException e) {
-            throw new IOException("Некорректная дата начала гарантии: '" + start + "' (артикул " + id + ")", e);
+            throw new IOException("Некорректная дата начала гарантии: '" + start
+                    + "' (артикул " + id + ")", e);
         } catch (RuntimeException e) {
             throw new IOException("Ошибка восстановления товара " + id, e);
         }
@@ -71,7 +55,6 @@ final class CatalogCodec {
             if (!errors.isEmpty())
                 throw new IOException("Некорректная запись: " + String.join("; ", errors));
         }
-
         return item;
     }
 
@@ -85,8 +68,10 @@ final class CatalogCodec {
             if (item == null)
                 throw new IOException("Пустой товар");
 
-            String start = item instanceof ProductWithWarranty w ? String.valueOf(w.getStartOfWarranty()) : null;
-            Integer months = item instanceof ProductWithWarranty w ? w.getWarrantyMonths() : null;
+            String start = item instanceof ProductWithWarranty w
+                    ? String.valueOf(w.getStartOfWarranty()) : null;
+            Integer months = item instanceof ProductWithWarranty w
+                    ? w.getWarrantyMonths() : null;
 
             create(item.getType().getCsvName(), item.getItemNumber(), item.getProductName(),
                     item.getCategory(), item.getPrice(), item.getRemainder(), start, months);

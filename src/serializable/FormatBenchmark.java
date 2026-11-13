@@ -26,7 +26,7 @@ public final class FormatBenchmark {
                 CatalogCodec.checkCancelled();
 
                 t = System.nanoTime();
-                List<CatalogItem> restored = serializer.load(file).data();
+                List<CatalogItem> restored = serializer.load(file);
                 load += System.nanoTime() - t;
 
                 CatalogCodec.checkCancelled();
