@@ -39,8 +39,8 @@ public final class CsvLoader {
     public LoadResult load(Path file) throws CsvException {
         Objects.requireNonNull(file, "file");
 
-        List<CatalogItem> items   = new ArrayList<>();
-        List<SkippedRow>  skipped = new ArrayList<>();
+        List<CatalogItem> items = new ArrayList<>();
+        List<SkippedRow> skipped = new ArrayList<>();
 
         CSVParser parser = new CSVParserBuilder().withSeparator(DELIMITER).build();
 
@@ -70,26 +70,25 @@ public final class CsvLoader {
     private static void addItem(String[] parts, List<CatalogItem> items)
             throws CsvParseException {
 
-        if (parts.length == 0) return;
+        if (parts.length == 0)
+            return;
 
         String rawType = parts[0] == null ? "" : parts[0].trim();
 
-        if (!rawType.isEmpty() && rawType.charAt(0) == '\uFEFF') {
+        if (!rawType.isEmpty() && rawType.charAt(0) == '\uFEFF')
             rawType = rawType.substring(1).trim();
-        }
 
         final String finalRawType = rawType;
         if (finalRawType.isEmpty())
             return;
 
         EntityType type = EntityType.fromCsvName(finalRawType)
-                .orElseThrow(() -> new CsvParseException(
-                        ErrorCode.UNKNOWN_TYPE,
+                .orElseThrow(() -> new CsvParseException(ErrorCode.UNKNOWN_TYPE,
                         "неизвестный тип записи: " + finalRawType));
 
         CatalogItem item = switch (type) {
             case PRODUCT -> parseProduct(parts);
-            case WARRANTY     -> parseWarranty(parts);
+            case WARRANTY -> parseWarranty(parts);
             case DISCONTINUED -> parseDiscontinued(parts);
         };
 
@@ -97,30 +96,23 @@ public final class CsvLoader {
         items.add(item);
     }
 
-    /** Унифицированная проверка: всё, что реализует Editable. */
     private static void validateItem(CatalogItem item) throws CsvParseException {
         List<String> errors = new ArrayList<>();
 
-        // 1. Для объектов, которые можно редактировать (Product, ProductWithWarranty)
-        if (item instanceof Editable editable) {
+        if (item instanceof Editable editable)
             errors.addAll(editable.validate());
-        }
-        // 2. Для read-only объектов (DiscontinuedProduct), где Editable нет
+
         else if (item instanceof DiscontinuedProduct dp) {
-            // Проверка цены
             if (dp.price() < Product.MIN_NUM_BORDER)
                 errors.add("price не может быть меньше " + Product.MIN_NUM_BORDER);
 
-            // Проверка остатка
             if (dp.remainder() < Product.MIN_NUM_BORDER || dp.remainder() >= Product.MAX_REMAINDER)
                 errors.add("remainder вне диапазона ["
                         + Product.MIN_NUM_BORDER + ".." + Product.MAX_REMAINDER + ")");
-
-            // itemNumber проверять здесь не обязательно,
-            // так как он уже проверен в методе parseItemNumber() при парсинге строки.
         }
 
-        if (errors.isEmpty()) return;
+        if (errors.isEmpty())
+            return;
 
         throw new CsvParseException(ErrorCode.PARSE_ERROR,
                 "запись с артикулом " + safeItemNumber(item)

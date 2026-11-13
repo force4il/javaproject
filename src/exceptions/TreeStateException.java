@@ -15,5 +15,5 @@ public class TreeStateException extends RuntimeException {
     }
 
     public ErrorCode getErrorCode() { return errorCode; }
-    public String    getCode()      { return errorCode.getCode(); }
+    public String getCode() { return errorCode.getCode(); }
 }

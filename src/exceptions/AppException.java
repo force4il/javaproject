@@ -20,7 +20,7 @@ public class AppException extends Exception {
     }
 
     public ErrorCode getErrorCode() { return errorCode; }
-    public String    getCode()      { return errorCode.getCode(); }
+    public String getCode() { return errorCode.getCode(); }
 
     private static String format(ErrorCode code, String message) {
         return "[" + code.getCode() + "] " + code.getDescription() + ": " + message;

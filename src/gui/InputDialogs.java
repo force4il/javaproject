@@ -19,7 +19,6 @@ public final class InputDialogs {
     private static final int DEFAULT_GEN = 10000;
     public static final int MAX_GEN_COUNT = 70000;
 
-
     private InputDialogs() {}
 
     public static Integer askExportVersion(Stage owner) {
@@ -27,10 +26,7 @@ public final class InputDialogs {
         dlg.initOwner(owner);
         dlg.setTitle("Версия формата");
         dlg.setHeaderText("Выберите версию схемы для экспорта");
-        dlg.getDialogPane().getButtonTypes().addAll(
-                ButtonType.OK,
-                ButtonType.CANCEL
-        );
+        dlg.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
 
         ComboBox<Integer> versionBox = new ComboBox<>();
         versionBox.getItems().addAll(1, 2, 3);
@@ -44,22 +40,14 @@ public final class InputDialogs {
 
         versionBox.valueProperty().addListener(
                 (obs, oldValue, newValue) -> {
-                    description.setText(
-                            getVersionDescription(newValue)
-                    );
+                    description.setText(getVersionDescription(newValue));
                 }
         );
 
-        description.setText(
-                getVersionDescription(versionBox.getValue())
-        );
+        description.setText(getVersionDescription(versionBox.getValue()));
 
-        VBox content = new VBox(
-                12,
-                new Label("Версия:"),
-                versionBox,
-                new Separator(),
-                description
+        VBox content = new VBox(12, new Label("Версия:"),
+                versionBox, new Separator(), description
         );
 
         content.setPadding(new Insets(15));
@@ -68,9 +56,7 @@ public final class InputDialogs {
         dlg.getDialogPane().setContent(content);
 
         dlg.setResultConverter(bt ->
-                bt == ButtonType.OK
-                        ? versionBox.getValue()
-                        : null
+                bt == ButtonType.OK ? versionBox.getValue() : null
         );
 
         return dlg.showAndWait().orElse(null);
@@ -119,8 +105,7 @@ public final class InputDialogs {
                 evt.consume();
             }
         });
-        dlg.setResultConverter(bt -> bt == ButtonType.OK
-                ? Integer.parseInt(field.getText().trim()) : 0);
+        dlg.setResultConverter(bt -> bt == ButtonType.OK ? Integer.parseInt(field.getText().trim()) : 0);
         return dlg.showAndWait().orElse(0);
     }
 
@@ -136,8 +121,7 @@ public final class InputDialogs {
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Сохранить CSV");
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("CSV", CSV_EXT));
-        chooser.setInitialFileName(currentFile != null
-                ? currentFile.getFileName().toString() : "data.csv");
+        chooser.setInitialFileName(currentFile != null ? currentFile.getFileName().toString() : "data.csv");
         applyInitialDir(chooser, currentFile);
         return chooser.showSaveDialog(owner);
     }
@@ -182,53 +166,52 @@ public final class InputDialogs {
     }
 
     private static String getVersionDescription(Integer version) {
-        if (version == null) {
+        if (version == null)
             return "";
-        }
 
         return switch (version) {
             case 1 -> """
-                Версия 1 — базовый формат.
+                Версия 1 — базовый формат
 
                 Сохраняются:
-                • Артикул;
-                • Название;
-                • Категория;
-                • Цена;
-                • Остаток.
+                - Артикул
+                - Название
+                - Категория
+                - Цена
+                - Остаток
 
                 Поддерживаются только обычные товары (Product).
                 Товары с гарантией и снятые с производства
-                экспортировать в эту версию нельзя.
+                экспортировать в эту версию нельзя
                 """;
 
             case 2 -> """
-                Версия 2 — расширенный формат.
+                Версия 2 — расширенный формат
 
                 Сохраняются:
-                • Все основные поля товара;
-                • Тип объекта;
-                • Дополнительные сведения о гарантии.
+                - Все основные поля товара
+                - Тип объекта
+                - Дополнительные сведения о гарантии
 
                 Поддерживаются Product, ProductWithWarranty
-                и DiscontinuedProduct.
+                и DiscontinuedProduct
                 """;
 
             case 3 -> """
-                Версия 3 — формат с проверкой целостности.
+                Версия 3 — формат с проверкой целостности
 
                 Сохраняются:
-                • Все данные версии 2;
-                • Дата и время экспорта;
-                • Количество записей (JSON);
-                • Контрольная сумма.
+                - Все данные версии 2
+                - Дата и время экспорта
+                - Количество записей (JSON)
+                - Контрольная сумма
 
                 JSON использует SHA-256, BIN — CRC32.
                 Контрольная сумма позволяет обнаружить
-                повреждение сохранённых данных.
+                повреждение сохранённых данных
                 """;
 
-            default -> "Неизвестная версия формата.";
+            default -> "Неизвестная версия формата";
         };
     }
 }

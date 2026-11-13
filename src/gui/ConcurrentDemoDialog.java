@@ -94,7 +94,9 @@ public final class ConcurrentDemoDialog {
     }
 
     private void showTreeStats(Stage owner) {
-        if (busy) return;
+        if (busy)
+            return;
+
         if (treeDamaged) {
             Dialogs.showError(owner, "Статистика недоступна",
                     "Структура дерева могла быть повреждена. Очистите дерево или загрузите CSV.");
@@ -130,10 +132,12 @@ public final class ConcurrentDemoDialog {
     }
 
     private void onLoad(Stage owner) {
-        if (busy) return;
+        if (busy)
+            return;
 
         File file = InputDialogs.chooseOpenCsv(owner, null);
-        if (file == null) return;
+        if (file == null)
+            return;
 
         setBusy(true);
         visualizer.setTree(null);
@@ -146,7 +150,8 @@ public final class ConcurrentDemoDialog {
                     try {
                         tree.insert(item.getItemNumber(), item);
                     } catch (TreeOperationException ex) {
-                        if (ex.getErrorCode() != ErrorCode.TREE_DUPLICATE_KEY) throw ex;
+                        if (ex.getErrorCode() != ErrorCode.TREE_DUPLICATE_KEY)
+                            throw ex;
                     }
                 }
                 return null;
@@ -173,7 +178,8 @@ public final class ConcurrentDemoDialog {
     }
 
     private void onAdd(Stage owner) {
-        if (busy) return;
+        if (busy)
+            return;
 
         if (treeDamaged) {
             Dialogs.showError(owner, "Повреждённое дерево",
@@ -247,7 +253,8 @@ public final class ConcurrentDemoDialog {
             boolean correct = r.isCorrect(expectedSize, expectedInsertions, expectedDuplicates);
 
             visualizer.setTree(tree);
-            if (visualizer.isCorrupted()) correct = false;
+            if (visualizer.isCorrupted())
+                correct = false;
 
             treeDamaged = !correct;
 

@@ -39,7 +39,6 @@ public final class GeneratorService {
                 if (tree.insertIfAbsent(it))
                     inserted++;
             } catch (TreeOperationException e) {
-                // генератор создаёт ключи > 0; эта ветка — признак бага
                 throw new IllegalStateException(
                         "generator produced invalid key: " + num, e);
             }

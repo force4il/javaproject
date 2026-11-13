@@ -36,7 +36,7 @@ public class ProductWithWarranty extends Product {
     @Override public EntityType getType() { return EntityType.WARRANTY; }
 
     public LocalDate getStartOfWarranty() { return startOfWarranty; }
-    public int getWarrantyMonths()        { return warrantyMonths; }
+    public int getWarrantyMonths() { return warrantyMonths; }
 
     public LocalDate getWarrantyEndDate() {
         return startOfWarranty == null ? null : startOfWarranty.plusMonths(warrantyMonths);

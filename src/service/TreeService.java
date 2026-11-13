@@ -38,18 +38,14 @@ public final class TreeService {
     public void replaceAll(List<CatalogItem> items)
             throws TreeOperationException {
 
-        if (items == null) {
-            throw new IllegalArgumentException(
-                    "Список товаров не может быть null");
-        }
+        if (items == null)
+            throw new IllegalArgumentException("Список товаров не может быть null");
 
         BTree<CatalogItem> replacement = new BTree<>();
 
         for (CatalogItem item : items) {
-            if (item == null) {
-                throw new IllegalArgumentException(
-                        "Список содержит null");
-            }
+            if (item == null)
+                throw new IllegalArgumentException("Список содержит null");
 
             replacement.insert(item.getItemNumber(), item);
         }
@@ -58,14 +54,11 @@ public final class TreeService {
             replacement.validateInvariants();
         } catch (TreeStateException ex) {
             throw new TreeOperationException(
-                    ErrorCode.TREE_STATE_CORRUPTED,
-                    "Не удалось построить дерево: "
-                            + ex.getMessage(),
+                    ErrorCode.TREE_STATE_CORRUPTED, "Не удалось построить дерево: " + ex.getMessage(),
                     ex
             );
         }
 
-        // Единственная точка замены текущего дерева.
         tree = replacement;
     }
 
@@ -89,13 +82,11 @@ public final class TreeService {
     public void replace(int oldKey, CatalogItem updated) throws TreeOperationException {
         int newKey = updated.getItemNumber();
         if (oldKey != newKey && tree.search(newKey) != null)
-            throw new TreeOperationException(ErrorCode.TREE_DUPLICATE_KEY,
-                    "ключ " + newKey + " уже существует");
+            throw new TreeOperationException(ErrorCode.TREE_DUPLICATE_KEY, "ключ " + newKey + " уже существует");
 
         CatalogItem old = tree.search(oldKey);
         if (old == null)
-            throw new TreeOperationException(ErrorCode.TREE_KEY_NOT_FOUND,
-                    "ключ " + oldKey + " отсутствует");
+            throw new TreeOperationException(ErrorCode.TREE_KEY_NOT_FOUND, "ключ " + oldKey + " отсутствует");
 
         tree.delete(oldKey);
         try {

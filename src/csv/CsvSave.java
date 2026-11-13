@@ -31,35 +31,23 @@ public final class CsvSave {
         Path temp = null;
 
         try {
-            // 1. Создаем временный файл в ТОЙ ЖЕ директории, что и целевой.
-            // Это критически важно: ATOMIC_MOVE работает только в пределах одной файловой системы.
             temp = Files.createTempFile(parent, "catalog-csv-", ".tmp");
-
-            // 2. Пишем данные во временный файл
             try (var writer = Files.newBufferedWriter(temp);
                  var csvWriter = new CSVWriterBuilder(writer).withSeparator(DELIMITER).build()) {
-                for (CatalogItem item : items) {
+                for (CatalogItem item : items)
                     csvWriter.writeNext(toLine(item));
-                }
             }
 
-            // 3. Атомарно подменяем целевой файл (если ОС поддерживает)
-            Files.move(temp, target,
-                    StandardCopyOption.REPLACE_EXISTING,
+            Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING,
                     StandardCopyOption.ATOMIC_MOVE);
-
         } catch (IOException e) {
             throw new CsvIOException(ErrorCode.FILE_WRITE,
                     "Не удалось сохранить файл: " + file, e);
         } finally {
-            // 4. В любом случае пытаемся удалить временный файл, если он остался
             if (temp != null) {
                 try {
                     Files.deleteIfExists(temp);
-                } catch (IOException ignored) {
-                    // Если не удалось удалить временный файл, не засоряем консоль.
-                    // Основная операция (сохранение) уже либо успешна, либо упала с ошибкой.
-                }
+                } catch (IOException ignored) {}
             }
         }
     }

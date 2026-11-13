@@ -12,9 +12,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-/** Замеры вставки и поиска для 1000, 10000 и 50000 товаров. */
+/** Замеры вставки и поиска для 1000, 10000 и 50000 товаров */
 public final class BenchmarkDialog {
-    private static final int[] SIZES = {1_000, 10_000, 50_000};
+    private static final int[] SIZES = {1000, 10000, 50000};
 
     private BenchmarkDialog() {}
 
@@ -49,12 +49,15 @@ public final class BenchmarkDialog {
             @Override protected List<BenchmarkRunner.SpeedRow> call() {
                 List<BenchmarkRunner.SpeedRow> result = new ArrayList<>();
                 for (int i = 0; i < SIZES.length; i++) {
-                    if (isCancelled()) break;
+                    if (isCancelled())
+                        break;
+
                     int n = SIZES[i];
                     updateMessage("Измерение: " + n + " элементов");
-                    BenchmarkRunner.SpeedRow row =
-                            BenchmarkRunner.runSpeed(n, 12345L + n, this::isCancelled);
-                    if (row == null) break;
+                    BenchmarkRunner.SpeedRow row = BenchmarkRunner.runSpeed(n, 12345L + n, this::isCancelled);
+                    if (row == null)
+                        break;
+
                     result.add(row);
                     int completed = i + 1;
                     updateProgress(completed, SIZES.length);

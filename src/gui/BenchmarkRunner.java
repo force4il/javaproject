@@ -14,9 +14,7 @@ import java.util.function.BooleanSupplier;
 public final class BenchmarkRunner {
 
     private static final int STEP_MASK = 0x3FF;
-
     private static final int RANGE_SCAN_REPEATS = 100;
-
     private static final int KEY_BOUND = Integer.MAX_VALUE / 2;
 
     private BenchmarkRunner() {}
@@ -34,19 +32,22 @@ public final class BenchmarkRunner {
 
         long t0 = System.nanoTime();
         for (int i = 0; i < n; i++) {
-            if ((i & STEP_MASK) == 0 && cancelled.getAsBoolean()) return rows;
+            if ((i & STEP_MASK) == 0 && cancelled.getAsBoolean())
+                return rows;
+
             try {
                 tree.insert(keys[i], items.get(i));
             } catch (TreeOperationException e) {
-                throw new IllegalStateException(
-                        "insert failed for key " + keys[i], e);
+                throw new IllegalStateException("insert failed for key " + keys[i], e);
             }
         }
         rows.add(new Row("Вставка", n, System.nanoTime() - t0));
 
         t0 = System.nanoTime();
         for (int i = 0; i < n; i++) {
-            if ((i & STEP_MASK) == 0 && cancelled.getAsBoolean()) return rows;
+            if ((i & STEP_MASK) == 0 && cancelled.getAsBoolean())
+                return rows;
+
             try {
                 if (tree.search(keys[i]) == null)
                     throw new IllegalStateException("search miss for key " + keys[i]);
@@ -60,7 +61,9 @@ public final class BenchmarkRunner {
         int hi = Math.max(keys[0], keys[n - 1]);
         t0 = System.nanoTime();
         for (int r = 0; r < RANGE_SCAN_REPEATS; r++) {
-            if (cancelled.getAsBoolean()) return rows;
+            if (cancelled.getAsBoolean())
+                return rows;
+
             try {
                 tree.rangeScan(lo, hi);
             } catch (TreeOperationException e) {
@@ -68,8 +71,7 @@ public final class BenchmarkRunner {
                         "rangeScan failed for [" + lo + ".." + hi + "]", e);
             }
         }
-        rows.add(new Row("Диапазонный скан ×" + RANGE_SCAN_REPEATS, n,
-                System.nanoTime() - t0));
+        rows.add(new Row("Диапазонный скан ×" + RANGE_SCAN_REPEATS, n, System.nanoTime() - t0));
 
         t0 = System.nanoTime();
         BTree.FillStats st = tree.stats();
@@ -77,7 +79,9 @@ public final class BenchmarkRunner {
 
         t0 = System.nanoTime();
         for (int i = 0; i < n; i++) {
-            if ((i & STEP_MASK) == 0 && cancelled.getAsBoolean()) return rows;
+            if ((i & STEP_MASK) == 0 && cancelled.getAsBoolean())
+                return rows;
+
             try {
                 tree.delete(keys[i]);
             } catch (TreeOperationException e) {
@@ -100,7 +104,9 @@ public final class BenchmarkRunner {
 
         long started = System.nanoTime();
         for (int i = 0; i < n; i++) {
-            if ((i & STEP_MASK) == 0 && cancelled.getAsBoolean()) return null;
+            if ((i & STEP_MASK) == 0 && cancelled.getAsBoolean())
+                return null;
+
             try {
                 tree.insert(keys[i], items.get(i));
             } catch (TreeOperationException e) {
@@ -108,23 +114,28 @@ public final class BenchmarkRunner {
             }
         }
         long insertNanos = System.nanoTime() - started;
-        if (cancelled.getAsBoolean()) return null;
+        if (cancelled.getAsBoolean())
+            return null;
 
         // Один и тот же существующий артикул, многократный поиск для точности.
         int target = keys[n / 2];
         final int repeats = 20_000;
         for (int i = 0; i < 2_000; i++) {
             try {
-                if (tree.search(target) == null) throw new IllegalStateException("Ключ не найден");
+                if (tree.search(target) == null)
+                    throw new IllegalStateException("Ключ не найден");
             } catch (TreeOperationException e) {
                 throw new IllegalStateException("Ошибка поиска", e);
             }
         }
         started = System.nanoTime();
         for (int i = 0; i < repeats; i++) {
-            if ((i & STEP_MASK) == 0 && cancelled.getAsBoolean()) return null;
+            if ((i & STEP_MASK) == 0 && cancelled.getAsBoolean())
+                return null;
+
             try {
-                if (tree.search(target) == null) throw new IllegalStateException("Ключ не найден");
+                if (tree.search(target) == null)
+                    throw new IllegalStateException("Ключ не найден");
             } catch (TreeOperationException e) {
                 throw new IllegalStateException("Ошибка поиска", e);
             }
@@ -142,7 +153,9 @@ public final class BenchmarkRunner {
         HashSet<Integer> used = new HashSet<>(n * 2);
         for (int i = 0; i < n; i++) {
             int k;
-            do { k = rnd.nextInt(KEY_BOUND) + 1; } while (!used.add(k));
+            do {
+                k = rnd.nextInt(KEY_BOUND) + 1;
+            } while (!used.add(k));
             keys[i] = k;
         }
         return keys;
@@ -151,7 +164,9 @@ public final class BenchmarkRunner {
     static List<CatalogItem> makeItems(int[] keys, long seed) {
         Random rnd = new Random(seed ^ 0x9E3779B9L);
         List<CatalogItem> out = new ArrayList<>(keys.length);
-        for (int k : keys) out.add(DataGenerator.randomItem(k, rnd));
+        for (int k : keys)
+            out.add(DataGenerator.randomItem(k, rnd));
+
         return out;
     }
 }

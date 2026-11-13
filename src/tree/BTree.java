@@ -17,13 +17,6 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.concurrent.locks.LockSupport;
 
-/**
- * B-дерево с настраиваемым порядком (чётным, ≥ 4; по умолчанию 4).
- * Ключ — положительное целое; значения — {@code T}.
- *
- * <p>Порядок = максимальное количество детей узла. Для порядка {@code m}:
- * {@code maxKeys = m-1}, {@code minKeys = m/2 - 1}.
- */
 public final class BTree<T> implements Serializable, Iterable<T> {
 
     @Serial
@@ -32,15 +25,11 @@ public final class BTree<T> implements Serializable, Iterable<T> {
     public static final int DEFAULT_ORDER = 4;
     public static final int MIN_ORDER = 4;
 
-    /** Для обратной совместимости со старым кодом. */
     public static final int ORDER = DEFAULT_ORDER;
     public static final int MAX_KEYS = ORDER - 1;
     public static final int MIN_KEYS = ORDER / 2 - 1;
 
-    /** Искусственная задержка перед вставкой — для демонстрации гонки. */
     public static volatile long RACE_DELAY_NANOS = 0;
-
-    /** Значение по умолчанию для новых деревьев. */
     public static boolean DEBUG_INVARIANTS = false;
 
     private final int order;
@@ -51,10 +40,7 @@ public final class BTree<T> implements Serializable, Iterable<T> {
     private Node root;
     private int size = 0;
 
-    /** Путь последней операции — для визуализации. */
     private transient List<Node> lastVisited = new ArrayList<>();
-
-    // ------------------------------------------------------------------ Node
 
     public static final class Node implements Serializable {
         @Serial
@@ -73,21 +59,25 @@ public final class BTree<T> implements Serializable, Iterable<T> {
         final double[] keyX;
 
         Node(int maxKeys, int order) {
-            if (maxKeys < 1) throw new IllegalArgumentException("maxKeys < 1: " + maxKeys);
-            if (order < 2)   throw new IllegalArgumentException("order < 2: " + order);
-            this.keys     = new int[maxKeys];
-            this.values   = new Object[maxKeys];
+            if (maxKeys < 1)
+                throw new IllegalArgumentException("maxKeys < 1: " + maxKeys);
+
+            if (order < 2)
+                throw new IllegalArgumentException("order < 2: " + order);
+
+            this.keys = new int[maxKeys];
+            this.values = new Object[maxKeys];
             this.children = new Node[order];
-            this.keyX     = new double[maxKeys];
+            this.keyX = new double[maxKeys];
         }
 
-        public int getNumKeys()   { return numKeys; }
-        public int getMaxKeys()   { return keys.length; }
-        public int getKey(int i)  { return keys[i]; }
-        public boolean isLeaf()   { return leaf; }
+        public int getNumKeys() { return numKeys; }
+        public int getMaxKeys() { return keys.length; }
+        public int getKey(int i) { return keys[i]; }
+        public boolean isLeaf() { return leaf; }
         public Node getChild(int i) { return children[i]; }
-        public double getLayoutX()  { return layoutX; }
-        public double getLayoutY()  { return layoutY; }
+        public double getLayoutX() { return layoutX; }
+        public double getLayoutY() { return layoutY; }
         public double getKeyX(int i){ return keyX[i]; }
         public boolean isHighlighted() { return highlighted; }
         public void setHighlighted(boolean v) { highlighted = v; }
@@ -96,10 +86,8 @@ public final class BTree<T> implements Serializable, Iterable<T> {
     public record FillStats(int nodes, int leaves, int totalKeys, int height,
                             double avgFill, int minKeys, int maxKeys) {}
 
-    // -------------------------------------------------------------- lifecycle
-
-    public BTree()                      { this(DEFAULT_ORDER, DEBUG_INVARIANTS); }
-    public BTree(int order)             { this(order, DEBUG_INVARIANTS); }
+    public BTree() { this(DEFAULT_ORDER, DEBUG_INVARIANTS); }
+    public BTree(int order) { this(order, DEBUG_INVARIANTS); }
     public BTree(int order, boolean debugInvariants) {
         if (order < MIN_ORDER || (order & 1) != 0)
             throw new IllegalArgumentException(
@@ -118,17 +106,16 @@ public final class BTree<T> implements Serializable, Iterable<T> {
         this.lastVisited = new ArrayList<>();
     }
 
-    public int getOrder()   { return order; }
+    public int getOrder() { return order; }
     public int getMaxKeys() { return maxKeys; }
     public int getMinKeys() { return minKeys; }
 
     public List<Node> getLastVisited() { return Collections.unmodifiableList(lastVisited); }
-    public int  size()    { return size; }
+    public int  size() { return size; }
     public Node getRoot() { return root; }
     public boolean isEmpty() { return size == 0; }
 
-    // ---------------------------------------------------------------- поиск
-
+    //поиск
     public T search(int key) throws TreeOperationException {
         checkKey(key);
         lastVisited.clear();
@@ -139,10 +126,15 @@ public final class BTree<T> implements Serializable, Iterable<T> {
     private T searchRec(Node n, int key) {
         lastVisited.add(n);
         int i = 0;
-        while (i < n.numKeys && key > n.keys[i]) i++;
+        while (i < n.numKeys && key > n.keys[i])
+            i++;
+
         if (i < n.numKeys && n.keys[i] == key)
             return (T) n.values[i];
-        if (n.leaf) return null;
+
+        if (n.leaf)
+            return null;
+
         return searchRec(n.children[i], key);
     }
 
@@ -153,16 +145,19 @@ public final class BTree<T> implements Serializable, Iterable<T> {
     @SuppressWarnings("unchecked")
     private T searchQuietRec(Node n, int key) {
         int i = 0;
-        while (i < n.numKeys && key > n.keys[i]) i++;
+        while (i < n.numKeys && key > n.keys[i])
+            i++;
+
         if (i < n.numKeys && n.keys[i] == key)
             return (T) n.values[i];
-        if (n.leaf) return null;
+
+        if (n.leaf)
+            return null;
+
         return searchQuietRec(n.children[i], key);
     }
 
-    // -------------------------------------------------------------- вставка
-
-    //вставка
+    // вставка
     public void insert(int key, T value) throws TreeOperationException {
         checkKey(key);
         if (value == null)
@@ -175,11 +170,10 @@ public final class BTree<T> implements Serializable, Iterable<T> {
                     "ключ " + key + " уже существует");
         }
 
-        if (RACE_DELAY_NANOS > 0) {
+        if (RACE_DELAY_NANOS > 0)
             LockSupport.parkNanos(RACE_DELAY_NANOS);
-        }
 
-        lastVisited.clear();     // единственная точка очистки на успешном пути
+        lastVisited.clear();
 
         if (root.numKeys == MAX_KEYS) {
             Node newRoot = newNode();
@@ -201,15 +195,18 @@ public final class BTree<T> implements Serializable, Iterable<T> {
         int i = n.numKeys - 1;
 
         if (n.leaf) {
-            while (i >= 0 && key < n.keys[i]) i--;
+            while (i >= 0 && key < n.keys[i])
+                i--;
+
             if (i >= 0 && n.keys[i] == key)
                 throw new TreeOperationException(ErrorCode.TREE_DUPLICATE_KEY,
                         "ключ " + key + " уже существует");
 
             for (int j = n.numKeys; j > i + 1; j--) {
-                n.keys[j]   = n.keys[j - 1];
+                n.keys[j] = n.keys[j - 1];
                 n.values[j] = n.values[j - 1];
             }
+
             n.keys[i + 1]   = key;
             n.values[i + 1] = value;
             n.numKeys++;
@@ -226,7 +223,8 @@ public final class BTree<T> implements Serializable, Iterable<T> {
             if (key == n.keys[i])
                 throw new TreeOperationException(ErrorCode.TREE_DUPLICATE_KEY,
                         "ключ " + key + " уже существует");
-            if (key > n.keys[i]) i++;
+            if (key > n.keys[i])
+                i++;
         }
         insertNonFull(n.children[i], key, value);
     }
@@ -239,7 +237,7 @@ public final class BTree<T> implements Serializable, Iterable<T> {
         int mid = maxKeys / 2;
         right.numKeys = maxKeys - mid - 1;
         for (int j = 0; j < right.numKeys; j++) {
-            right.keys[j]   = full.keys[mid + 1 + j];
+            right.keys[j] = full.keys[mid + 1 + j];
             right.values[j] = full.values[mid + 1 + j];
         }
         if (!full.leaf)
@@ -253,16 +251,15 @@ public final class BTree<T> implements Serializable, Iterable<T> {
         parent.children[idx + 1] = right;
 
         for (int j = parent.numKeys - 1; j >= idx; j--) {
-            parent.keys[j + 1]   = parent.keys[j];
+            parent.keys[j + 1] = parent.keys[j];
             parent.values[j + 1] = parent.values[j];
         }
-        parent.keys[idx]   = full.keys[mid];
+        parent.keys[idx] = full.keys[mid];
         parent.values[idx] = full.values[mid];
         parent.numKeys++;
     }
 
-    // -------------------------------------------------------------- удаление
-
+    //удаление
     public T delete(int key) throws TreeOperationException {
         checkKey(key);
         T old = search(key);
@@ -272,33 +269,43 @@ public final class BTree<T> implements Serializable, Iterable<T> {
 
         lastVisited.clear();
         deleteRec(root, key);
-        if (root.numKeys == 0 && !root.leaf) root = root.children[0];
+        if (root.numKeys == 0 && !root.leaf)
+            root = root.children[0];
 
         size--;
         lastVisited.clear();
-        if (debugInvariants) checkInvariants();
+        if (debugInvariants)
+            checkInvariants();
+
         return old;
     }
 
     private void deleteRec(Node n, int key) {
         lastVisited.add(n);
         int idx = 0;
-        while (idx < n.numKeys && key > n.keys[idx]) idx++;
+        while (idx < n.numKeys && key > n.keys[idx])
+            idx++;
 
         if (idx < n.numKeys && n.keys[idx] == key) {
-            if (n.leaf) removeFromLeaf(n, idx);
-            else        removeFromInternal(n, idx);
+            if (n.leaf)
+                removeFromLeaf(n, idx);
+            else
+                removeFromInternal(n, idx);
         } else {
             boolean last = (idx == n.numKeys);
-            if (n.children[idx].numKeys == minKeys) fill(n, idx);
-            if (last && idx > n.numKeys) deleteRec(n.children[idx - 1], key);
-            else                          deleteRec(n.children[idx], key);
+            if (n.children[idx].numKeys == minKeys)
+                fill(n, idx);
+
+            if (last && idx > n.numKeys)
+                deleteRec(n.children[idx - 1], key);
+            else
+                deleteRec(n.children[idx], key);
         }
     }
 
     private void removeFromLeaf(Node n, int idx) {
         for (int i = idx + 1; i < n.numKeys; i++) {
-            n.keys[i - 1]   = n.keys[i];
+            n.keys[i - 1] = n.keys[i];
             n.values[i - 1] = n.values[i];
         }
         n.numKeys--;
@@ -311,12 +318,12 @@ public final class BTree<T> implements Serializable, Iterable<T> {
 
         if (l.numKeys > minKeys) {
             int pred = maxKey(l);
-            n.keys[idx]   = pred;
+            n.keys[idx] = pred;
             n.values[idx] = valueOf(l, pred);
             deleteRec(l, pred);
         } else if (r.numKeys > minKeys) {
             int succ = minKey(r);
-            n.keys[idx]   = succ;
+            n.keys[idx] = succ;
             n.values[idx] = valueOf(r, succ);
             deleteRec(r, succ);
         } else {
@@ -325,42 +332,63 @@ public final class BTree<T> implements Serializable, Iterable<T> {
         }
     }
 
-    private int maxKey(Node n) { while (!n.leaf) n = n.children[n.numKeys]; return n.keys[n.numKeys - 1]; }
-    private int minKey(Node n) { while (!n.leaf) n = n.children[0];         return n.keys[0]; }
+    private int maxKey(Node n) {
+        while (!n.leaf)
+            n = n.children[n.numKeys];
+
+        return n.keys[n.numKeys - 1];
+    }
+
+    private int minKey(Node n) {
+        while (!n.leaf)
+            n = n.children[0];
+
+        return n.keys[0];
+    }
 
     private Object valueOf(Node n, int key) {
         int i = 0;
-        while (i < n.numKeys && key > n.keys[i]) i++;
-        if (i < n.numKeys && n.keys[i] == key) return n.values[i];
-        if (n.leaf) return null;
+        while (i < n.numKeys && key > n.keys[i])
+            i++;
+
+        if (i < n.numKeys && n.keys[i] == key)
+            return n.values[i];
+
+        if (n.leaf)
+            return null;
+
         return valueOf(n.children[i], key);
     }
 
     private void fill(Node n, int idx) {
-        if (idx > 0 && n.children[idx - 1].numKeys > minKeys)      borrowPrev(n, idx);
-        else if (idx < n.numKeys && n.children[idx + 1].numKeys > minKeys) borrowNext(n, idx);
+        if (idx > 0 && n.children[idx - 1].numKeys > minKeys) borrowPrev(n, idx);
+        else if (idx < n.numKeys && n.children[idx + 1].numKeys > minKeys)
+            borrowNext(n, idx);
         else {
-            if (idx < n.numKeys) merge(n, idx);
-            else                 merge(n, idx - 1);
+            if (idx < n.numKeys)
+                merge(n, idx);
+            else
+                merge(n, idx - 1);
         }
     }
 
     private void borrowPrev(Node parent, int idx) {
         Node child = parent.children[idx];
-        Node sib   = parent.children[idx - 1];
+        Node sib = parent.children[idx - 1];
         for (int i = child.numKeys - 1; i >= 0; i--) {
-            child.keys[i + 1]   = child.keys[i];
+            child.keys[i + 1] = child.keys[i];
             child.values[i + 1] = child.values[i];
         }
         if (!child.leaf)
             for (int i = child.numKeys; i >= 0; i--)
                 child.children[i + 1] = child.children[i];
 
-        child.keys[0]   = parent.keys[idx - 1];
+        child.keys[0] = parent.keys[idx - 1];
         child.values[0] = parent.values[idx - 1];
-        if (!child.leaf) child.children[0] = sib.children[sib.numKeys];
+        if (!child.leaf)
+            child.children[0] = sib.children[sib.numKeys];
 
-        parent.keys[idx - 1]   = sib.keys[sib.numKeys - 1];
+        parent.keys[idx - 1] = sib.keys[sib.numKeys - 1];
         parent.values[idx - 1] = sib.values[sib.numKeys - 1];
         child.numKeys++;
         sib.numKeys--;
@@ -368,16 +396,16 @@ public final class BTree<T> implements Serializable, Iterable<T> {
 
     private void borrowNext(Node parent, int idx) {
         Node child = parent.children[idx];
-        Node sib   = parent.children[idx + 1];
-        child.keys[child.numKeys]   = parent.keys[idx];
+        Node sib = parent.children[idx + 1];
+        child.keys[child.numKeys] = parent.keys[idx];
         child.values[child.numKeys] = parent.values[idx];
         if (!child.leaf)
             child.children[child.numKeys + 1] = sib.children[0];
 
-        parent.keys[idx]   = sib.keys[0];
+        parent.keys[idx] = sib.keys[0];
         parent.values[idx] = sib.values[0];
         for (int i = 1; i < sib.numKeys; i++) {
-            sib.keys[i - 1]   = sib.keys[i];
+            sib.keys[i - 1] = sib.keys[i];
             sib.values[i - 1] = sib.values[i];
         }
         if (!sib.leaf)
@@ -391,10 +419,10 @@ public final class BTree<T> implements Serializable, Iterable<T> {
     private void merge(Node parent, int idx) {
         Node l = parent.children[idx];
         Node r = parent.children[idx + 1];
-        l.keys[l.numKeys]   = parent.keys[idx];
+        l.keys[l.numKeys] = parent.keys[idx];
         l.values[l.numKeys] = parent.values[idx];
         for (int i = 0; i < r.numKeys; i++) {
-            l.keys[l.numKeys + 1 + i]   = r.keys[i];
+            l.keys[l.numKeys + 1 + i] = r.keys[i];
             l.values[l.numKeys + 1 + i] = r.values[i];
         }
         if (!l.leaf)
@@ -404,7 +432,7 @@ public final class BTree<T> implements Serializable, Iterable<T> {
         l.numKeys += 1 + r.numKeys;
 
         for (int i = idx; i < parent.numKeys - 1; i++) {
-            parent.keys[i]   = parent.keys[i + 1];
+            parent.keys[i] = parent.keys[i + 1];
             parent.values[i] = parent.values[i + 1];
         }
         for (int i = idx + 1; i < parent.numKeys; i++)
@@ -413,8 +441,7 @@ public final class BTree<T> implements Serializable, Iterable<T> {
         parent.numKeys--;
     }
 
-    // ------------------------------------------------------- диапазонный скан
-
+    // диапазонный скан
     public List<T> rangeScan(int from, int to) throws TreeOperationException {
         checkKey(from);
         checkKey(to);
@@ -424,7 +451,9 @@ public final class BTree<T> implements Serializable, Iterable<T> {
 
         lastVisited.clear();
         List<T> out = new ArrayList<>();
-        if (root.numKeys > 0) rangeScanRec(root, from, to, out);
+        if (root.numKeys > 0)
+            rangeScanRec(root, from, to, out);
+
         lastVisited.clear();
         return out;
     }
@@ -441,19 +470,23 @@ public final class BTree<T> implements Serializable, Iterable<T> {
             }
             if (n.keys[i] >= from && n.keys[i] <= to)
                 out.add((T) n.values[i]);
-            if (n.keys[i] > to) return;
+
+            if (n.keys[i] > to)
+                return;
         }
         if (!n.leaf) {
             int childMin = (n.numKeys == 0) ? Integer.MIN_VALUE : n.keys[n.numKeys - 1] + 1;
-            if (childMin <= to) rangeScanRec(n.children[n.numKeys], from, to, out);
+            if (childMin <= to)
+                rangeScanRec(n.children[n.numKeys], from, to, out);
         }
     }
 
-    // ------------------------------------------------------------ обход/скан
-
+    //обход/скан
     public List<T> inOrder() {
         List<T> out = new ArrayList<>(size);
-        if (root.numKeys > 0) inOrderRec(root, out);
+        if (root.numKeys > 0)
+            inOrderRec(root, out);
+
         return out;
     }
 
@@ -463,10 +496,10 @@ public final class BTree<T> implements Serializable, Iterable<T> {
             if (!n.leaf) inOrderRec(n.children[i], out);
             out.add((T) n.values[i]);
         }
-        if (!n.leaf) inOrderRec(n.children[n.numKeys], out);
+        if (!n.leaf)
+            inOrderRec(n.children[n.numKeys], out);
     }
 
-    /** Ленивый in-order итератор (без материализации списка). */
     @Override
     public Iterator<T> iterator() { return new InOrderIterator(); }
 
@@ -474,13 +507,16 @@ public final class BTree<T> implements Serializable, Iterable<T> {
         private final Deque<Frame> stack = new ArrayDeque<>();
 
         InOrderIterator() {
-            if (root.numKeys > 0 || !root.leaf) pushLeftDescend(root);
+            if (root.numKeys > 0 || !root.leaf)
+                pushLeftDescend(root);
         }
 
         private void pushLeftDescend(Node n) {
             while (true) {
                 stack.push(new Frame(n));
-                if (n.leaf) return;
+                if (n.leaf)
+                    return;
+
                 n = n.children[0];
             }
         }
@@ -489,7 +525,9 @@ public final class BTree<T> implements Serializable, Iterable<T> {
         public boolean hasNext() {
             while (!stack.isEmpty()) {
                 Frame f = stack.peek();
-                if (f.idx < f.node.numKeys) return true;
+                if (f.idx < f.node.numKeys)
+                    return true;
+
                 stack.pop();
             }
             return false;
@@ -498,12 +536,16 @@ public final class BTree<T> implements Serializable, Iterable<T> {
         @Override
         @SuppressWarnings("unchecked")
         public T next() {
-            if (!hasNext()) throw new NoSuchElementException();
+            if (!hasNext())
+                throw new NoSuchElementException();
+
             Frame f = stack.peek();
             T val = (T) f.node.values[f.idx];
             int nextIdx = f.idx + 1;
             f.idx = nextIdx;
-            if (!f.node.leaf) pushLeftDescend(f.node.children[nextIdx]);
+            if (!f.node.leaf)
+                pushLeftDescend(f.node.children[nextIdx]);
+
             return val;
         }
     }
@@ -514,12 +556,13 @@ public final class BTree<T> implements Serializable, Iterable<T> {
         Frame(Node node) { this.node = node; }
     }
 
-    // ----------------------------------------------------------- статистика
-
+    // статистика
     public FillStats stats() {
         int[] acc = new int[4];
         int[] mm  = {Integer.MAX_VALUE, Integer.MIN_VALUE};
-        if (root.numKeys > 0 || !root.leaf) statsRec(root, 1, acc, mm);
+        if (root.numKeys > 0 || !root.leaf)
+            statsRec(root, 1, acc, mm);
+
         double avg = acc[0] == 0 ? 0 : (double) acc[2] / acc[0];
         return new FillStats(acc[0], acc[1], acc[2], acc[3], avg,
                 mm[0] == Integer.MAX_VALUE ? 0 : mm[0],
@@ -530,8 +573,11 @@ public final class BTree<T> implements Serializable, Iterable<T> {
         acc[0]++;
         acc[2] += n.numKeys;
         acc[3] = Math.max(acc[3], depth);
-        if (n.leaf) acc[1]++;
-        else for (int i = 0; i <= n.numKeys; i++) statsRec(n.children[i], depth + 1, acc, mm);
+        if (n.leaf)
+            acc[1]++;
+        else
+            for (int i = 0; i <= n.numKeys; i++)
+                statsRec(n.children[i], depth + 1, acc, mm);
 
         if (n != root) {
             mm[0] = Math.min(mm[0], n.numKeys);
@@ -545,8 +591,7 @@ public final class BTree<T> implements Serializable, Iterable<T> {
         lastVisited.clear();
     }
 
-    // ------------------------------------------------------- инварианты
-
+    //инварианты
     private void checkInvariants() {
         if (!root.leaf && root.numKeys == 0)
             throw new TreeStateException(ErrorCode.TREE_STATE_CORRUPTED,
@@ -584,7 +629,8 @@ public final class BTree<T> implements Serializable, Iterable<T> {
         }
 
         if (n.leaf) {
-            if (leafDepth[0] == Integer.MIN_VALUE) leafDepth[0] = depth;
+            if (leafDepth[0] == Integer.MIN_VALUE)
+                leafDepth[0] = depth;
             else if (leafDepth[0] != depth)
                 throw new TreeStateException(ErrorCode.TREE_STATE_CORRUPTED,
                         "лист на глубине " + depth
@@ -598,33 +644,35 @@ public final class BTree<T> implements Serializable, Iterable<T> {
                         "null-потомок в позиции " + i + " из " + (n.numKeys + 1)
                                 + " на глубине " + depth);
 
-            long childLo = (i == 0)          ? lo          : n.keys[i - 1];
-            long childHi = (i == n.numKeys)  ? hi          : n.keys[i];
+            long childLo = (i == 0) ? lo : n.keys[i - 1];
+            long childHi = (i == n.numKeys) ? hi : n.keys[i];
             total += checkNode(n.children[i], false, childLo, childHi, depth + 1, leafDepth);
         }
         return total;
     }
 
-    /** Проверка итогового состояния после конкурентных операций. */
     public void validateInvariants() { checkInvariants(); }
 
-    // ------------------------------------------------ layout для визуализации
-
+    //layout для визуализации
     public void computeLayout() {
         int[] counter = {0};
         assignPositions(root, 0, counter);
     }
 
     private void assignPositions(Node n, int depth, int[] counter) {
-        n.depth    = depth;
-        n.layoutY  = depth;
+        n.depth = depth;
+        n.layoutY = depth;
         double sum = 0;
         for (int i = 0; i < n.numKeys; i++) {
-            if (!n.leaf) assignPositions(n.children[i], depth + 1, counter);
+            if (!n.leaf)
+                assignPositions(n.children[i], depth + 1, counter);
+
             n.keyX[i] = counter[0]++;
             sum += n.keyX[i];
         }
-        if (!n.leaf) assignPositions(n.children[n.numKeys], depth + 1, counter);
+        if (!n.leaf)
+            assignPositions(n.children[n.numKeys], depth + 1, counter);
+
         n.layoutX = (n.numKeys == 0) ? counter[0] : sum / n.numKeys;
     }
 

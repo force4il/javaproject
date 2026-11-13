@@ -15,7 +15,6 @@ import java.util.function.Consumer;
 public final class OperationSupport {
 
     private static final String BUSY_TITLE = "Операция";
-
     private final Stage stage;
     private final Label status;
     private final Label stats;
@@ -33,25 +32,12 @@ public final class OperationSupport {
         this.stats = view.statsLabel;
         this.progress = view.progressBar;
         this.cancel = view.cancelButton;
-        this.ioButtons = List.of(
-                view.loadButton,
-                view.saveButton,
-                view.importButton,
-                view.exportButton,
-                view.compareFormatsButton,
-                view.addButton,
-                view.editButton,
-                view.delButton,
-                view.genButton,
-                view.benchButton,
-                view.clearButton,
+        this.ioButtons = List.of(view.loadButton, view.saveButton, view.importButton,
+                view.exportButton, view.compareFormatsButton, view.addButton, view.editButton,
+                view.delButton, view.genButton, view.benchButton, view.clearButton,
                 view.raceDemoButton
         );
-        this.readControls = List.of(
-                view.searchField,
-                view.rangeFrom,
-                view.rangeTo
-        );
+        this.readControls = List.of(view.searchField, view.rangeFrom, view.rangeTo);
 
         cancel.setOnAction(e -> cancel());
     }
@@ -60,8 +46,7 @@ public final class OperationSupport {
     public void setStats(String text)  { stats.setText(text); }
     public void setOnIdle(Runnable r)  { this.onIdle = r == null ? () -> {} : r; }
 
-    public <T> void run(Task<T> task, String busyMessage,
-                        Consumer<T> onSuccess, String actionTitle) {
+    public <T> void run(Task<T> task, String busyMessage, Consumer<T> onSuccess, String actionTitle) {
         task.messageProperty().addListener((obs, oldValue, newValue) -> {
             if (newValue != null && !newValue.isBlank())
                 status.setText(newValue);
@@ -109,13 +94,11 @@ public final class OperationSupport {
         progress.setManaged(true);
         cancel.setVisible(true);
         cancel.setManaged(true);
-        for (Button button : ioButtons) {
+        for (Button button : ioButtons)
             button.setDisable(true);
-        }
 
-        for (var control : readControls) {
+        for (var control : readControls)
             control.setDisable(true);
-        }
     }
 
     private void idle() {
@@ -125,13 +108,11 @@ public final class OperationSupport {
         progress.setManaged(false);
         cancel.setVisible(false);
         cancel.setManaged(false);
-        for (Button button : ioButtons) {
+        for (Button button : ioButtons)
             button.setDisable(false);
-        }
 
-        for (var control : readControls) {
+        for (var control : readControls)
             control.setDisable(false);
-        }
         onIdle.run();
     }
 

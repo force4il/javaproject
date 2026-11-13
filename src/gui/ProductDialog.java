@@ -91,8 +91,7 @@ public final class ProductDialog extends Dialog<Product> {
                 Product candidate = parseResult(productRadio, itemNumberField, nameField, categoryField, priceField, remainderField, startDatePicker, warrantyMonths);
 
                 // проверка уникальности артикула
-                boolean sameAsExisting = existing != null
-                        && candidate.getItemNumberRaw() == existing.getItemNumberRaw();
+                boolean sameAsExisting = existing != null && candidate.getItemNumberRaw() == existing.getItemNumberRaw();
                 if (!sameAsExisting && keyInUse != null) {
                     long raw = candidate.getItemNumberRaw();
                     if (raw < Integer.MIN_VALUE || raw > Integer.MAX_VALUE)

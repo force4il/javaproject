@@ -44,7 +44,7 @@ public final class BTreeVisual extends Pane {
     }
 
     private Throwable renderError;
-    private String   renderDiagnostics;
+    private String renderDiagnostics;
 
     public void setTree(BTree<?> tree) {
         this.tree = tree;
@@ -126,8 +126,7 @@ public final class BTreeVisual extends Pane {
 
         try {
             BTree.Node r = tree.getRoot();
-            sb.append(", root.numKeys=").append(r.getNumKeys())
-                    .append(", root.leaf=").append(r.isLeaf());
+            sb.append(", root.numKeys=").append(r.getNumKeys()).append(", root.leaf=").append(r.isLeaf());
         } catch (Throwable t) {
             sb.append(", root=?");
         }
@@ -179,6 +178,7 @@ public final class BTreeVisual extends Pane {
     private double xKey(double keyIdx, double scale, double offX) {
         return keyIdx * DX * scale + offX;
     }
+
     private double yLevel(double depth, double scale, double offY) {
         return depth * DY * scale + offY;
     }
@@ -188,7 +188,7 @@ public final class BTreeVisual extends Pane {
             return xKey(n.getLayoutX(), scale, offX);
 
         double first = n.getKeyX(0);
-        double last  = n.getKeyX(n.getNumKeys() - 1);
+        double last = n.getKeyX(n.getNumKeys() - 1);
         return xKey((first + last) / 2.0, scale, offX);
     }
 
@@ -283,9 +283,8 @@ public final class BTreeVisual extends Pane {
 
         // Дочерние узлы
         if (!n.isLeaf()) {
-            for (int i = 0; i <= n.getNumKeys(); i++) {
+            for (int i = 0; i <= n.getNumKeys(); i++)
                 drawNodes(g, n.getChild(i), scale, offX, offY);
-            }
         }
     }
 }

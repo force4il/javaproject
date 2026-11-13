@@ -58,14 +58,14 @@ public class Product implements Editable, CatalogItem {
     }
 
     public long getItemNumberRaw() { return itemNumber; }
-    public long getPriceRaw()      { return price; }
+    public long getPriceRaw() { return price; }
 
-    @Override public int getItemNumber()     { return Math.toIntExact(itemNumber); }
+    @Override public int getItemNumber() { return Math.toIntExact(itemNumber); }
     @Override public String getProductName() { return productName; }
-    @Override public String getCategory()    { return category; }
-    @Override public int getPrice()          { return Math.toIntExact(price); }
-    @Override public int getRemainder()      { return remainder; }
-    @Override public EntityType getType()    { return EntityType.PRODUCT; }
+    @Override public String getCategory() { return category; }
+    @Override public int getPrice() { return Math.toIntExact(price); }
+    @Override public int getRemainder() { return remainder; }
+    @Override public EntityType getType() { return EntityType.PRODUCT; }
 
     @Override
     public String toString() {

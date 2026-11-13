@@ -81,9 +81,12 @@ public final class ProductController {
 
     private void onLoad() {
         File file = InputDialogs.chooseOpenCsv(stage, currentFile);
-        if (file == null) return;
+        if (file == null)
+            return;
+
         if (!tree.isEmpty() && !Dialogs.confirm(stage, TITLE_LOAD,
-                "Текущее дерево будет очищено. Продолжить?")) return;
+                "Текущее дерево будет очищено. Продолжить?"))
+            return;
 
         Path path = file.toPath();
         Task<CsvLoader.LoadResult> task = files.loadTask(path);
@@ -99,7 +102,7 @@ public final class ProductController {
                 if (!result.skippedRows().isEmpty())
                     Dialogs.showSkipped(stage, result.skippedRows());
             } catch (TreeOperationException ex) {
-                // Если что-то пошло не так, старое дерево осталось на месте!
+                //при ошибке старое дерево остается
                 Dialogs.showTreeError(stage, TITLE_LOAD, ex);
             }
         }, TITLE_LOAD);
@@ -107,7 +110,9 @@ public final class ProductController {
 
     private void onSave() {
         File file = InputDialogs.chooseSaveCsv(stage, currentFile);
-        if (file == null) return;
+        if (file == null)
+            return;
+
         Path path = file.toPath();
         List<CatalogItem> snapshot = new ArrayList<>(tree.all());
 
@@ -130,13 +135,11 @@ public final class ProductController {
 
     private Serializer<List<CatalogItem>> serializerFor(File file) {
         String name = file.getName().toLowerCase(java.util.Locale.ROOT);
-        if (name.endsWith(".json")) {
+        if (name.endsWith(".json"))
             return new JsonCatalogSerializer();
-        }
 
-        if (name.endsWith(".bin")) {
+        if (name.endsWith(".bin"))
             return new BinaryCatalogSerializer();
-        }
 
         throw new IllegalArgumentException(
                 "Выберите файл .json или .bin");
@@ -146,20 +149,18 @@ public final class ProductController {
         FileChooser chooser = serialChooser("Экспорт каталога");
         chooser.setInitialFileName("catalog.json");
         File file = chooser.showSaveDialog(stage);
-        if (file == null) return;
+        if (file == null)
+            return;
 
         Integer version = InputDialogs.askExportVersion(stage);
-        if (version == null) return;   // пользователь передумал
-
+        if (version == null)
+            return;
         try {
             Serializer<List<CatalogItem>> serializer = serializerFor(file);
             var snapshot = new ArrayList<>(tree.all());
 
-            ops.run(
-                    serialization.saveTask(serializer, snapshot, file.toPath(), version),
-                    "Экспорт…",
-                    ignored -> ops.setStatus("Экспортировано: " + file.getName()
-                            + " (v" + version + ")"),
+            ops.run(serialization.saveTask(serializer, snapshot, file.toPath(), version), "Экспорт…",
+                    ignored -> ops.setStatus("Экспортировано: " + file.getName() + " (v" + version + ")"),
                     "Экспорт"
             );
         } catch (IllegalArgumentException ex) {
@@ -168,13 +169,10 @@ public final class ProductController {
     }
 
     private void onImport() {
-        // 1. Выбор файла
         File file = serialChooser("Импорт каталога").showOpenDialog(stage);
-        if (file == null) {
+        if (file == null)
             return;
-        }
 
-        // 2. Определение сериализатора по расширению (.json / .bin)
         final Serializer<List<CatalogItem>> serializer;
         try {
             serializer = serializerFor(file);
@@ -183,13 +181,8 @@ public final class ProductController {
             return;
         }
 
-        // 3. Фоновая загрузка → Loaded<List<CatalogItem>> (данные + версия)
-        ops.run(
-                serialization.loadTask(serializer, file.toPath()),
-                "Импорт…",
+        ops.run(serialization.loadTask(serializer, file.toPath()), "Импорт…",
                 loaded -> {
-                    // 4. Подтверждение — уже после загрузки, поэтому версия известна.
-                    //    Показываем только если в дереве что-то есть (иначе заменять нечего).
                     if (!tree.isEmpty()) {
                         String message = "Файл: " + file.getName() + "\n"
                                 + "Формат: " + serializer.format() + "\n"
@@ -205,8 +198,7 @@ public final class ProductController {
                     try {
                         tree.replaceAll(loaded.data());
                         refreshAll();
-                        ops.setStatus("Импортировано: " + loaded.data().size()
-                                + " записей из " + file.getName()
+                        ops.setStatus("Импортировано: " + loaded.data().size() + " записей из " + file.getName()
                                 + " (версия " + loaded.version() + ")");
                     } catch (TreeOperationException ex) {
                         Dialogs.showTreeError(stage, "Импорт", ex);
@@ -222,11 +214,10 @@ public final class ProductController {
             try {
                 boolean added = tree.insertIfAbsent(p);
                 refreshAll();
-                if (added) {
+                if (added)
                     ops.setStatus("Добавлено: " + p.getItemNumber());
-                } else {
+                else
                     ops.setStatus("Артикул " + p.getItemNumber() + " уже существует");
-                }
             } catch (TreeOperationException ex) {
                 Dialogs.showTreeError(stage, TITLE_ADD, ex);
             }
@@ -237,13 +228,15 @@ public final class ProductController {
         try {
             return tree.search(key) != null;
         } catch (TreeOperationException e) {
-            return false;   // ключ < 1 — сюда не попадём после validate()
+            return false;
         }
     }
 
     private void onEdit() {
         CatalogItem sel = view.table.getSelectionModel().getSelectedItem();
-        if (!(sel instanceof Product existing)) return;
+        if (!(sel instanceof Product existing))
+            return;
+
         ProductDialog d = new ProductDialog(stage, existing, this::keyExists);
         d.showAndWait().ifPresent(updated -> {
             try {
@@ -258,7 +251,9 @@ public final class ProductController {
 
     private void onDelete() {
         CatalogItem sel = view.table.getSelectionModel().getSelectedItem();
-        if (sel == null) return;
+        if (sel == null)
+            return;
+
         try {
             tree.deleteIfExists(sel.getItemNumber());
             refreshAll();
@@ -270,13 +265,14 @@ public final class ProductController {
 
     private void onSearch() {
         String s = view.searchField.getText().trim();
-        if (s.isEmpty()) return;
+        if (s.isEmpty())
+            return;
+
         int key;
         try { key = Integer.parseInt(s); }
         catch (NumberFormatException e) {
             Dialogs.showError(stage, TITLE_SEARCH,
-                    InputDialogs.isNumericWithOptionalSign(s)
-                            ? "Артикул не помещается в int"
+                    InputDialogs.isNumericWithOptionalSign(s) ? "Артикул не помещается в int"
                             : "Артикул должен быть целым числом");
             return;
         }
@@ -304,9 +300,9 @@ public final class ProductController {
 
     private void onRange() {
         String fromText = view.rangeFrom.getText();
-        String toText   = view.rangeTo.getText();
+        String toText = view.rangeTo.getText();
         Integer from = InputDialogs.parseOrNull(fromText);
-        Integer to   = InputDialogs.parseOrNull(toText);
+        Integer to = InputDialogs.parseOrNull(toText);
 
         if (from == null || to == null) {
             String msg = (InputDialogs.isBlank(fromText) || InputDialogs.isBlank(toText))
@@ -332,27 +328,25 @@ public final class ProductController {
 
     private void onGenerate() {
         int count = InputDialogs.askGenCount(stage);
-        if (count <= 0) return;
+        if (count <= 0)
+            return;
+
         long seed = System.nanoTime();
-
         final List<CatalogItem> initialItems = new ArrayList<>(tree.all());
-
         Task<List<CatalogItem>> task = new Task<>() {
             @Override
             protected List<CatalogItem> call() throws Exception {
-                // 1. Создаем временное дерево и копируем туда текущие данные
                 TreeService temporary = new TreeService();
                 for (CatalogItem item : initialItems)
                     temporary.insertIfAbsent(item);
 
-                // 2. Генерируем новые данные во ВРЕМЕННОЕ дерево
                 generator.generate(temporary, count, seed,
                         i -> updateProgress(i, count), this::isCancelled);
 
-                // 3. Если операция не была отменена, возвращаем результат
-                if (isCancelled()) throw new java.util.concurrent.CancellationException();
+                if (isCancelled())
+                    throw new java.util.concurrent.CancellationException();
 
-                return temporary.all(); // Возвращаем плоский список для безопасной замены
+                return temporary.all();
             }
         };
 
@@ -368,9 +362,12 @@ public final class ProductController {
     }
 
     private void onClear() {
-        if (tree.isEmpty()) return;
-        if (!Dialogs.confirm(stage, TITLE_CONFIRM,
-                "Текущее дерево будет очищено. Продолжить?")) return;
+        if (tree.isEmpty())
+            return;
+
+        if (!Dialogs.confirm(stage, TITLE_CONFIRM, "Текущее дерево будет очищено. Продолжить?"))
+            return;
+
         tree.clear();
         refreshAll();
         ops.setStatus("Очищено");
@@ -407,10 +404,8 @@ public final class ProductController {
 
     private void updateStats() {
         BTree.FillStats s = tree.stats();
-        ops.setStats(String.format(
-                "узлов=%d, листьев=%d, ключей=%d, высота=%d, средн.заполн.=%.2f, min=%d, max=%d",
-                s.nodes(), s.leaves(), s.totalKeys(), s.height(),
-                s.avgFill(), s.minKeys(), s.maxKeys()));
+        ops.setStats(String.format("узлов=%d, листьев=%d, ключей=%d, высота=%d, средн.заполн.=%.2f, min=%d, max=%d",
+                s.nodes(), s.leaves(), s.totalKeys(), s.height(), s.avgFill(), s.minKeys(), s.maxKeys()));
     }
 
     private void refreshSelectionButtons() {

@@ -17,6 +17,7 @@ public enum EntityType {
     public static Optional<EntityType> fromCsvName(String name) {
         if (name == null)
             return Optional.empty();
+
         for (EntityType t : values())
             if (t.csvName.equals(name))
                 return Optional.of(t);

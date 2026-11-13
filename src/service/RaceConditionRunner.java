@@ -11,7 +11,6 @@ import java.util.concurrent.atomic.AtomicReference;
 /** Общая логика конкурентной вставки одного ключа в B-дерево*/
 public final class RaceConditionRunner {
 
-    /** Результат одного прогона */
     public record Result(int threadCount, int key, boolean useSync,
             int successes, int duplicates, int errors,
             boolean invariantsValid, boolean keyPresent,
@@ -89,11 +88,11 @@ public final class RaceConditionRunner {
             }
 
             try {
-                ready.await();                              // все потоки готовы
+                ready.await();
             } finally {
-                start.countDown();                          // синхронный старт
+                start.countDown();
             }
-            done.await();                                   // ждём завершения
+            done.await();
 
             return collect(tree, key, threadCount, useSync,
                     successes, duplicates, errors, firstError);

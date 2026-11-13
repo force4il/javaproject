@@ -6,7 +6,6 @@ import java.nio.file.Path;
 public interface Serializer<T> {
     int CURRENT_VERSION = CatalogCodec.CURRENT_VERSION;
 
-    /** Результат чтения: данные + версия из заголовка файла. */
     record Loaded<T>(T data, int version) {}
 
     String format();
@@ -17,5 +16,5 @@ public interface Serializer<T> {
 
     void save(T data, Path file, int version) throws IOException;
 
-    Loaded<T> load(Path file) throws IOException;   // ← было T
+    Loaded<T> load(Path file) throws IOException;
 }
