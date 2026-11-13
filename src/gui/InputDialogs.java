@@ -6,6 +6,8 @@ import javafx.scene.control.*;
 import javafx.scene.layout.GridPane;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
+import javafx.scene.layout.VBox;
+import serializable.Serializer;
 
 import java.io.File;
 import java.nio.file.Path;
@@ -19,6 +21,72 @@ public final class InputDialogs {
 
 
     private InputDialogs() {}
+
+    public static Integer askExportVersion(Stage owner) {
+        Dialog<Integer> dlg = new Dialog<>();
+        dlg.initOwner(owner);
+        dlg.setTitle("Версия формата");
+        dlg.setHeaderText("Выберите версию схемы для экспорта");
+        dlg.getDialogPane().getButtonTypes().addAll(
+                ButtonType.OK,
+                ButtonType.CANCEL
+        );
+
+        ComboBox<Integer> versionBox = new ComboBox<>();
+        versionBox.getItems().addAll(1, 2, 3);
+        versionBox.setValue(Serializer.CURRENT_VERSION);
+        versionBox.setMaxWidth(Double.MAX_VALUE);
+
+        Label description = new Label();
+        description.setWrapText(true);
+        description.setMinHeight(100);
+        description.setMaxWidth(420);
+
+        versionBox.valueProperty().addListener(
+                (obs, oldValue, newValue) -> {
+                    description.setText(
+                            getVersionDescription(newValue)
+                    );
+                }
+        );
+
+        description.setText(
+                getVersionDescription(versionBox.getValue())
+        );
+
+        VBox content = new VBox(
+                12,
+                new Label("Версия:"),
+                versionBox,
+                new Separator(),
+                description
+        );
+
+        content.setPadding(new Insets(15));
+        content.setPrefWidth(440);
+
+        dlg.getDialogPane().setContent(content);
+
+        dlg.setResultConverter(bt ->
+                bt == ButtonType.OK
+                        ? versionBox.getValue()
+                        : null
+        );
+
+        return dlg.showAndWait().orElse(null);
+    }
+
+    private static Integer parseVersionOrNull(String s) {
+        if (s == null || s.isBlank())
+            return null;
+
+        try {
+            int version = Integer.parseInt(s.trim());
+            return version >= 1 && version <= Serializer.CURRENT_VERSION ? version : null;
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
 
     public static Integer askGenCount(Stage owner) {
         TextField field = new TextField(String.valueOf(DEFAULT_GEN));
@@ -111,5 +179,56 @@ public final class InputDialogs {
                 return false;
 
         return true;
+    }
+
+    private static String getVersionDescription(Integer version) {
+        if (version == null) {
+            return "";
+        }
+
+        return switch (version) {
+            case 1 -> """
+                Версия 1 — базовый формат.
+
+                Сохраняются:
+                • Артикул;
+                • Название;
+                • Категория;
+                • Цена;
+                • Остаток.
+
+                Поддерживаются только обычные товары (Product).
+                Товары с гарантией и снятые с производства
+                экспортировать в эту версию нельзя.
+                """;
+
+            case 2 -> """
+                Версия 2 — расширенный формат.
+
+                Сохраняются:
+                • Все основные поля товара;
+                • Тип объекта;
+                • Дополнительные сведения о гарантии.
+
+                Поддерживаются Product, ProductWithWarranty
+                и DiscontinuedProduct.
+                """;
+
+            case 3 -> """
+                Версия 3 — формат с проверкой целостности.
+
+                Сохраняются:
+                • Все данные версии 2;
+                • Дата и время экспорта;
+                • Количество записей (JSON);
+                • Контрольная сумма.
+
+                JSON использует SHA-256, BIN — CRC32.
+                Контрольная сумма позволяет обнаружить
+                повреждение сохранённых данных.
+                """;
+
+            default -> "Неизвестная версия формата.";
+        };
     }
 }

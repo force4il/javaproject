@@ -88,9 +88,7 @@ public final class ProductDialog extends Dialog<Product> {
         Button okButton = (Button) getDialogPane().lookupButton(okType);
         okButton.addEventFilter(ActionEvent.ACTION, evt -> {
             try {
-                Product candidate = parseResult(productRadio, itemNumberField, nameField,
-                        categoryField, priceField, remainderField,
-                        startDatePicker, warrantyMonths);
+                Product candidate = parseResult(productRadio, itemNumberField, nameField, categoryField, priceField, remainderField, startDatePicker, warrantyMonths);
 
                 // проверка уникальности артикула
                 boolean sameAsExisting = existing != null

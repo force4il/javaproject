@@ -22,6 +22,7 @@ public final class OperationSupport {
     private final ProgressBar progress;
     private final Button cancel;
     private final List<Button> ioButtons;
+    private final List<javafx.scene.control.Control> readControls;
 
     private volatile Task<?> current;
     private Runnable onIdle = () -> {};
@@ -32,10 +33,26 @@ public final class OperationSupport {
         this.stats = view.statsLabel;
         this.progress = view.progressBar;
         this.cancel = view.cancelButton;
-        this.ioButtons = List.of(view.loadButton, view.saveButton, view.addButton,
-                view.editButton, view.delButton, view.genButton,
-                view.benchButton, view.clearButton,
-                view.raceDemoButton);
+        this.ioButtons = List.of(
+                view.loadButton,
+                view.saveButton,
+                view.importButton,
+                view.exportButton,
+                view.compareFormatsButton,
+                view.addButton,
+                view.editButton,
+                view.delButton,
+                view.genButton,
+                view.benchButton,
+                view.clearButton,
+                view.raceDemoButton
+        );
+        this.readControls = List.of(
+                view.searchField,
+                view.rangeFrom,
+                view.rangeTo
+        );
+
         cancel.setOnAction(e -> cancel());
     }
 
@@ -92,8 +109,13 @@ public final class OperationSupport {
         progress.setManaged(true);
         cancel.setVisible(true);
         cancel.setManaged(true);
-        for (Button b : ioButtons)
-            b.setDisable(true);
+        for (Button button : ioButtons) {
+            button.setDisable(true);
+        }
+
+        for (var control : readControls) {
+            control.setDisable(true);
+        }
     }
 
     private void idle() {
@@ -103,9 +125,13 @@ public final class OperationSupport {
         progress.setManaged(false);
         cancel.setVisible(false);
         cancel.setManaged(false);
-        for (Button b : ioButtons)
-            b.setDisable(false);
+        for (Button button : ioButtons) {
+            button.setDisable(false);
+        }
 
+        for (var control : readControls) {
+            control.setDisable(false);
+        }
         onIdle.run();
     }
 

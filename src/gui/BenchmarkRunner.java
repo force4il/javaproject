@@ -44,7 +44,6 @@ public final class BenchmarkRunner {
         }
         rows.add(new Row("Вставка", n, System.nanoTime() - t0));
 
-        // ---- поиск ----
         t0 = System.nanoTime();
         for (int i = 0; i < n; i++) {
             if ((i & STEP_MASK) == 0 && cancelled.getAsBoolean()) return rows;
@@ -57,7 +56,6 @@ public final class BenchmarkRunner {
         }
         rows.add(new Row("Поиск", n, System.nanoTime() - t0));
 
-        // ---- диапазонный скан ----
         int lo = Math.min(keys[0], keys[n - 1]);
         int hi = Math.max(keys[0], keys[n - 1]);
         t0 = System.nanoTime();
@@ -73,12 +71,10 @@ public final class BenchmarkRunner {
         rows.add(new Row("Диапазонный скан ×" + RANGE_SCAN_REPEATS, n,
                 System.nanoTime() - t0));
 
-        // ---- статистика ----
         t0 = System.nanoTime();
         BTree.FillStats st = tree.stats();
         rows.add(new Row("Статистика", st.nodes(), System.nanoTime() - t0));
 
-        // ---- удаление ----
         t0 = System.nanoTime();
         for (int i = 0; i < n; i++) {
             if ((i & STEP_MASK) == 0 && cancelled.getAsBoolean()) return rows;
@@ -152,7 +148,6 @@ public final class BenchmarkRunner {
         return keys;
     }
 
-    /** Отдаём генерацию элементов в {@link DataGenerator}, чтобы распределение было единым. */
     static List<CatalogItem> makeItems(int[] keys, long seed) {
         Random rnd = new Random(seed ^ 0x9E3779B9L);
         List<CatalogItem> out = new ArrayList<>(keys.length);

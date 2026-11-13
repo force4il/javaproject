@@ -1,9 +1,13 @@
 package model;
 
+import java.io.Serial;
 import java.util.ArrayList;
 import java.util.List;
 
 public class Product implements Editable, CatalogItem {
+
+    @Serial
+    private static final long serialVersionUID = 1L;
 
     protected long itemNumber;
     protected String productName;
@@ -12,8 +16,8 @@ public class Product implements Editable, CatalogItem {
     protected int remainder;
 
     public static final int MIN_ITEM_NUMBER = 1;
-    public static final int MIN_NUM_BORDER = 0;
-    public static final int MAX_REMAINDER = 100;
+    public static final int MIN_NUM_BORDER  = 0;
+    public static final int MAX_REMAINDER   = 100;
 
     public Product(long itemNumber, String productName, String category,
                    long price, int remainder) {
@@ -49,20 +53,19 @@ public class Product implements Editable, CatalogItem {
         return errors;
     }
 
-    //проверка на диапазон переданного числа
     private static boolean checkToInt(long value) {
         return value < Integer.MIN_VALUE || value > Integer.MAX_VALUE;
     }
 
     public long getItemNumberRaw() { return itemNumber; }
-    public long getPriceRaw() { return price; }
+    public long getPriceRaw()      { return price; }
 
     @Override public int getItemNumber()     { return Math.toIntExact(itemNumber); }
     @Override public String getProductName() { return productName; }
     @Override public String getCategory()    { return category; }
     @Override public int getPrice()          { return Math.toIntExact(price); }
     @Override public int getRemainder()      { return remainder; }
-    @Override public EntityType getType() { return EntityType.PRODUCT; }
+    @Override public EntityType getType()    { return EntityType.PRODUCT; }
 
     @Override
     public String toString() {

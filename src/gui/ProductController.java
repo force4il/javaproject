@@ -20,22 +20,28 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
+import service.SerializationService;
+import serializable.*;
+import javafx.stage.FileChooser;
+
+
 public final class ProductController {
 
-    private static final String TITLE_LOAD    = "Загрузка";
-    private static final String TITLE_SAVE    = "Сохранение";
-    private static final String TITLE_ADD     = "Добавление";
-    private static final String TITLE_EDIT    = "Изменение";
-    private static final String TITLE_DEL     = "Удаление";
-    private static final String TITLE_GEN     = "Генерация";
-    private static final String TITLE_SEARCH  = "Поиск";
-    private static final String TITLE_RANGE   = "Диапазон";
+    private static final String TITLE_LOAD = "Загрузка";
+    private static final String TITLE_SAVE = "Сохранение";
+    private static final String TITLE_ADD  = "Добавление";
+    private static final String TITLE_EDIT = "Изменение";
+    private static final String TITLE_DEL = "Удаление";
+    private static final String TITLE_GEN  = "Генерация";
+    private static final String TITLE_SEARCH = "Поиск";
+    private static final String TITLE_RANGE = "Диапазон";
     private static final String TITLE_CONFIRM = "Очистка дерева";
 
-    private final Stage            stage;
-    private final ProductView      view    = new ProductView();
-    private final TreeService      tree    = new TreeService();
-    private final FileService      files   = new FileService();
+    private final Stage stage;
+    private final ProductView view = new ProductView();
+    private final TreeService tree = new TreeService();
+    private final FileService files = new FileService();
+    private final SerializationService serialization = new SerializationService();
     private final GeneratorService generator = new GeneratorService();
     private final OperationSupport ops;
 
@@ -44,13 +50,18 @@ public final class ProductController {
     public ProductController(Stage stage) {
         this.stage = stage;
         this.ops   = new OperationSupport(stage, view);
-        ops.setOnIdle(this::refreshSelectionButtons);
-
+        ops.setOnIdle(() -> {
+            refreshSelectionButtons();
+            refreshExportButton();
+        });
         view.table.getSelectionModel().selectedItemProperty()
                 .addListener((o, a, b) -> refreshSelectionButtons());
 
         view.loadButton.setOnAction(e -> onLoad());
         view.saveButton.setOnAction(e -> onSave());
+        view.importButton.setOnAction(e -> onImport());
+        view.exportButton.setOnAction(e -> onExport());
+        view.compareFormatsButton.setOnAction(e -> FormatBenchmarkDialog.show(stage, new ArrayList<>(tree.all())));
         view.addButton.setOnAction(e -> onAdd());
         view.editButton.setOnAction(e -> onEdit());
         view.delButton.setOnAction(e -> onDelete());
@@ -62,6 +73,8 @@ public final class ProductController {
         view.rangeButton.setOnAction(e -> onRange());
         view.showAllBtn.setOnAction(e -> refreshTable());
         view.searchField.setOnAction(e -> onSearch());
+
+        refreshExportButton();
     }
 
     public BorderPane getView() { return view.root; }
@@ -74,13 +87,11 @@ public final class ProductController {
 
         Path path = file.toPath();
         Task<CsvLoader.LoadResult> task = files.loadTask(path);
+
         ops.run(task, "Загрузка…", result -> {
             try {
-                // FileService только читает CSV; заполняем дерево после чтения.
-                tree.clear();
-                for (CatalogItem item : result.items()) {
-                    tree.insertIfAbsent(item);
-                }
+                tree.replaceAll(result.items());
+
                 currentFile = path;
                 refreshAll();
                 ops.setStatus("Загружено: " + path.getFileName()
@@ -88,6 +99,7 @@ public final class ProductController {
                 if (!result.skippedRows().isEmpty())
                     Dialogs.showSkipped(stage, result.skippedRows());
             } catch (TreeOperationException ex) {
+                // Если что-то пошло не так, старое дерево осталось на месте!
                 Dialogs.showTreeError(stage, TITLE_LOAD, ex);
             }
         }, TITLE_LOAD);
@@ -106,15 +118,116 @@ public final class ProductController {
         }, TITLE_SAVE);
     }
 
+    private FileChooser serialChooser(String title) {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle(title);
+        chooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("JSON (*.json)", "*.json"),
+                new FileChooser.ExtensionFilter("BIN (*.bin)", "*.bin")
+        );
+        return chooser;
+    }
+
+    private Serializer<List<CatalogItem>> serializerFor(File file) {
+        String name = file.getName().toLowerCase(java.util.Locale.ROOT);
+        if (name.endsWith(".json")) {
+            return new JsonCatalogSerializer();
+        }
+
+        if (name.endsWith(".bin")) {
+            return new BinaryCatalogSerializer();
+        }
+
+        throw new IllegalArgumentException(
+                "Выберите файл .json или .bin");
+    }
+
+    private void onExport() {
+        FileChooser chooser = serialChooser("Экспорт каталога");
+        chooser.setInitialFileName("catalog.json");
+        File file = chooser.showSaveDialog(stage);
+        if (file == null) return;
+
+        Integer version = InputDialogs.askExportVersion(stage);
+        if (version == null) return;   // пользователь передумал
+
+        try {
+            Serializer<List<CatalogItem>> serializer = serializerFor(file);
+            var snapshot = new ArrayList<>(tree.all());
+
+            ops.run(
+                    serialization.saveTask(serializer, snapshot, file.toPath(), version),
+                    "Экспорт…",
+                    ignored -> ops.setStatus("Экспортировано: " + file.getName()
+                            + " (v" + version + ")"),
+                    "Экспорт"
+            );
+        } catch (IllegalArgumentException ex) {
+            Dialogs.showError(stage, "Экспорт", ex.getMessage());
+        }
+    }
+
+    private void onImport() {
+        // 1. Выбор файла
+        File file = serialChooser("Импорт каталога").showOpenDialog(stage);
+        if (file == null) {
+            return;
+        }
+
+        // 2. Определение сериализатора по расширению (.json / .bin)
+        final Serializer<List<CatalogItem>> serializer;
+        try {
+            serializer = serializerFor(file);
+        } catch (IllegalArgumentException ex) {
+            Dialogs.showError(stage, "Импорт", ex.getMessage());
+            return;
+        }
+
+        // 3. Фоновая загрузка → Loaded<List<CatalogItem>> (данные + версия)
+        ops.run(
+                serialization.loadTask(serializer, file.toPath()),
+                "Импорт…",
+                loaded -> {
+                    // 4. Подтверждение — уже после загрузки, поэтому версия известна.
+                    //    Показываем только если в дереве что-то есть (иначе заменять нечего).
+                    if (!tree.isEmpty()) {
+                        String message = "Файл: " + file.getName() + "\n"
+                                + "Формат: " + serializer.format() + "\n"
+                                + "Версия схемы: " + loaded.version() + "\n"
+                                + "Записей в файле: " + loaded.data().size() + "\n\n"
+                                + "Текущее дерево будет заменено. Продолжить?";
+                        if (!Dialogs.confirm(stage, "Импорт", message)) {
+                            ops.setStatus("Импорт отменён (v" + loaded.version() + ")");
+                            return;
+                        }
+                    }
+
+                    try {
+                        tree.replaceAll(loaded.data());
+                        refreshAll();
+                        ops.setStatus("Импортировано: " + loaded.data().size()
+                                + " записей из " + file.getName()
+                                + " (версия " + loaded.version() + ")");
+                    } catch (TreeOperationException ex) {
+                        Dialogs.showTreeError(stage, "Импорт", ex);
+                    }
+                },
+                "Импорт"
+        );
+    }
+
     private void onAdd() {
-        ProductDialog d = new ProductDialog(stage, null, key -> keyExists(key));
+        ProductDialog d = new ProductDialog(stage, null, this::keyExists);
         d.showAndWait().ifPresent(p -> {
             try {
-                tree.insertIfAbsent(p);
+                boolean added = tree.insertIfAbsent(p);
                 refreshAll();
-                ops.setStatus("Добавлено: " + p.getItemNumber());
+                if (added) {
+                    ops.setStatus("Добавлено: " + p.getItemNumber());
+                } else {
+                    ops.setStatus("Артикул " + p.getItemNumber() + " уже существует");
+                }
             } catch (TreeOperationException ex) {
-                // сюда попадём только если insert упал по другой причине
                 Dialogs.showTreeError(stage, TITLE_ADD, ex);
             }
         });
@@ -222,15 +335,35 @@ public final class ProductController {
         if (count <= 0) return;
         long seed = System.nanoTime();
 
-        Task<Integer> task = new Task<>() {
-            @Override protected Integer call() {
-                return generator.generate(tree, count, seed,
+        final List<CatalogItem> initialItems = new ArrayList<>(tree.all());
+
+        Task<List<CatalogItem>> task = new Task<>() {
+            @Override
+            protected List<CatalogItem> call() throws Exception {
+                // 1. Создаем временное дерево и копируем туда текущие данные
+                TreeService temporary = new TreeService();
+                for (CatalogItem item : initialItems)
+                    temporary.insertIfAbsent(item);
+
+                // 2. Генерируем новые данные во ВРЕМЕННОЕ дерево
+                generator.generate(temporary, count, seed,
                         i -> updateProgress(i, count), this::isCancelled);
+
+                // 3. Если операция не была отменена, возвращаем результат
+                if (isCancelled()) throw new java.util.concurrent.CancellationException();
+
+                return temporary.all(); // Возвращаем плоский список для безопасной замены
             }
         };
-        ops.run(task, "Генерация…", inserted -> {
-            refreshAll();
-            ops.setStatus("Сгенерировано: " + inserted + " (seed=" + seed + ")");
+
+        ops.run(task, "Генерация…", resultList -> {
+            try {
+                tree.replaceAll(resultList);
+                refreshAll();
+                ops.setStatus("Сгенерировано: " + count + " (seed=" + seed + ")");
+            } catch (TreeOperationException ex) {
+                Dialogs.showTreeError(stage, TITLE_GEN, ex);
+            }
         }, TITLE_GEN);
     }
 
@@ -247,6 +380,7 @@ public final class ProductController {
         refreshTable();
         view.visualizer.setTree(tree.raw());
         updateStats();
+        refreshExportButton();
     }
 
     private void refreshTable() {
@@ -282,6 +416,10 @@ public final class ProductController {
     private void refreshSelectionButtons() {
         CatalogItem sel = view.table.getSelectionModel().getSelectedItem();
         view.editButton.setDisable(!(sel instanceof Editable));
-        view.delButton .setDisable(sel == null);
+        view.delButton.setDisable(sel == null);
+    }
+
+    private void refreshExportButton() {
+        view.exportButton.setDisable(tree.isEmpty());
     }
 }

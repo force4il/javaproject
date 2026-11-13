@@ -17,22 +17,21 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-
 import model.CatalogItem;
 import model.DiscontinuedProduct;
+import model.Editable;
 import model.EntityType;
 import model.Product;
 import model.ProductWithWarranty;
-import model.Editable;
 
 import java.math.BigInteger;
 
 public final class CsvLoader {
 
     private static final char DELIMITER = ';';
-    private static final int  FIELDS_PRODUCT = 6;
-    private static final int  FIELDS_WARRANTY = 8;
-    private static final int  FIELDS_DISCONTINUED = 6;
+    private static final int FIELDS_PRODUCT = 6;
+    private static final int FIELDS_WARRANTY = 8;
+    private static final int FIELDS_DISCONTINUED = 6;
 
     public record SkippedRow(long lineNumber, CsvParseException cause) {}
     public record LoadResult(List<CatalogItem> items, List<SkippedRow> skippedRows) {}
@@ -71,21 +70,26 @@ public final class CsvLoader {
     private static void addItem(String[] parts, List<CatalogItem> items)
             throws CsvParseException {
 
-        if (parts.length == 0)
-            return;
+        if (parts.length == 0) return;
 
         String rawType = parts[0] == null ? "" : parts[0].trim();
-        if (rawType.isEmpty())
+
+        if (!rawType.isEmpty() && rawType.charAt(0) == '\uFEFF') {
+            rawType = rawType.substring(1).trim();
+        }
+
+        final String finalRawType = rawType;
+        if (finalRawType.isEmpty())
             return;
 
-        EntityType type = EntityType.fromCsvName(rawType)
+        EntityType type = EntityType.fromCsvName(finalRawType)
                 .orElseThrow(() -> new CsvParseException(
                         ErrorCode.UNKNOWN_TYPE,
-                        "неизвестный тип записи: " + rawType));
+                        "неизвестный тип записи: " + finalRawType));
 
         CatalogItem item = switch (type) {
             case PRODUCT -> parseProduct(parts);
-            case WARRANTY -> parseWarranty(parts);
+            case WARRANTY     -> parseWarranty(parts);
             case DISCONTINUED -> parseDiscontinued(parts);
         };
 
@@ -93,23 +97,30 @@ public final class CsvLoader {
         items.add(item);
     }
 
+    /** Унифицированная проверка: всё, что реализует Editable. */
     private static void validateItem(CatalogItem item) throws CsvParseException {
-        List<String> errors;
+        List<String> errors = new ArrayList<>();
+
+        // 1. Для объектов, которые можно редактировать (Product, ProductWithWarranty)
         if (item instanceof Editable editable) {
-            errors = editable.validate();
-        } else if (item instanceof DiscontinuedProduct dp) {
-            errors = new ArrayList<>();
-            if (dp.price()    < Product.MIN_NUM_BORDER)
+            errors.addAll(editable.validate());
+        }
+        // 2. Для read-only объектов (DiscontinuedProduct), где Editable нет
+        else if (item instanceof DiscontinuedProduct dp) {
+            // Проверка цены
+            if (dp.price() < Product.MIN_NUM_BORDER)
                 errors.add("price не может быть меньше " + Product.MIN_NUM_BORDER);
-            if (dp.remainder() < Product.MIN_NUM_BORDER
-                    || dp.remainder() >= Product.MAX_REMAINDER)
+
+            // Проверка остатка
+            if (dp.remainder() < Product.MIN_NUM_BORDER || dp.remainder() >= Product.MAX_REMAINDER)
                 errors.add("remainder вне диапазона ["
                         + Product.MIN_NUM_BORDER + ".." + Product.MAX_REMAINDER + ")");
-        } else {
-            return;
+
+            // itemNumber проверять здесь не обязательно,
+            // так как он уже проверен в методе parseItemNumber() при парсинге строки.
         }
-        if (errors.isEmpty())
-            return;
+
+        if (errors.isEmpty()) return;
 
         throw new CsvParseException(ErrorCode.PARSE_ERROR,
                 "запись с артикулом " + safeItemNumber(item)
@@ -135,7 +146,7 @@ public final class CsvLoader {
 
     private static ProductWithWarranty parseWarranty(String[] p) throws CsvParseException {
         expect(p, FIELDS_WARRANTY, EntityType.WARRANTY.getCsvName());
-        return new ProductWithWarranty(parseItemNumber(p[1]),   // ←
+        return new ProductWithWarranty(parseItemNumber(p[1]),
                 requireText(p[2], "productName"),
                 requireText(p[3], "category"),
                 parseInt(p[4], "price"),
@@ -168,13 +179,11 @@ public final class CsvLoader {
                     "обязательное поле '" + field + "' не заполнено");
     }
 
-    private static String requireText(String value, String field)
-            throws CsvParseException {
+    private static String requireText(String value, String field) throws CsvParseException {
         checkEmptyOrNull(value, field);
         return value.trim();
     }
 
-    /** Парсит любое целое, включая выходящее за пределы int и long */
     private static BigInteger parseBigInteger(String value, String field)
             throws CsvParseException {
         checkEmptyOrNull(value, field);
@@ -186,13 +195,11 @@ public final class CsvLoader {
         }
     }
 
-    /** Целое число, влезает в int */
     private static int parseInt(String value, String field) throws CsvParseException {
         BigInteger bi = parseBigInteger(value, field);
         return toIntInRange(bi, value, field);
     }
 
-    /** Для артикула: влезает в int и >= MIN_ITEM_NUMBER */
     private static int parseItemNumber(String value) throws CsvParseException {
         int v = parseInt(value, "itemNumber");
         if (v < Product.MIN_ITEM_NUMBER)
@@ -201,7 +208,6 @@ public final class CsvLoader {
         return v;
     }
 
-    /** Проверяет, что BigInteger попадает в диапазон int, и возвращает его как int */
     private static int toIntInRange(BigInteger bi, String raw, String field)
             throws CsvParseException {
         if (bi.compareTo(BigInteger.valueOf(Integer.MIN_VALUE)) < 0
@@ -212,8 +218,7 @@ public final class CsvLoader {
         return bi.intValue();
     }
 
-    private static LocalDate parseDate(String value, String field)
-            throws CsvParseException {
+    private static LocalDate parseDate(String value, String field) throws CsvParseException {
         checkEmptyOrNull(value, field);
         try {
             return LocalDate.parse(value.trim());

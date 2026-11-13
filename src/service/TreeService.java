@@ -34,19 +34,41 @@ public final class TreeService {
         }
     }
 
-    public void replaceAll(List<CatalogItem> items) throws TreeOperationException {
+
+    public void replaceAll(List<CatalogItem> items)
+            throws TreeOperationException {
+
+        if (items == null) {
+            throw new IllegalArgumentException(
+                    "Список товаров не может быть null");
+        }
+
         BTree<CatalogItem> replacement = new BTree<>();
-        for (CatalogItem item : items)
+
+        for (CatalogItem item : items) {
+            if (item == null) {
+                throw new IllegalArgumentException(
+                        "Список содержит null");
+            }
+
             replacement.insert(item.getItemNumber(), item);
+        }
 
         try {
             replacement.validateInvariants();
         } catch (TreeStateException ex) {
-            throw new TreeOperationException(ErrorCode.TREE_STATE_CORRUPTED,
-                    "не удалось построить дерево: " + ex.getMessage(), ex);
+            throw new TreeOperationException(
+                    ErrorCode.TREE_STATE_CORRUPTED,
+                    "Не удалось построить дерево: "
+                            + ex.getMessage(),
+                    ex
+            );
         }
+
+        // Единственная точка замены текущего дерева.
         tree = replacement;
     }
+
 
     public boolean deleteIfExists(int key) throws TreeOperationException {
         try {

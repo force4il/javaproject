@@ -1,8 +1,12 @@
 package exceptions;
 
+import java.io.Serial;
+
 /** Общее исключение приложения */
 public class AppException extends Exception {
 
+    @Serial
+    private static final long serialVersionUID = 1L;
     private final ErrorCode errorCode;
 
     public AppException(ErrorCode errorCode, String message) {

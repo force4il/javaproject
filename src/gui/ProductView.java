@@ -34,7 +34,11 @@ public final class ProductView {
     public final TableView<CatalogItem>      table;
     public final BTreeVisual                 visualizer = new BTreeVisual();
 
-    public final Button loadButton   = new Button("Загрузить CSV");
+
+    public final Button importButton = new Button("Импорт BIN/JSON");
+    public final Button exportButton = new Button("Экспорт BIN/JSON");
+    public final Button compareFormatsButton = new Button("Сравнить BIN/JSON");
+    public final Button loadButton = new Button("Загрузить CSV");
     public final Button saveButton   = new Button("Сохранить CSV");
     public final Button addButton    = new Button("Добавить");
     public final Button editButton   = new Button("Изменить");
@@ -114,9 +118,12 @@ public final class ProductView {
         FlowPane actionsRow = new FlowPane(TOOLBAR_HGAP, TOOLBAR_VGAP);
         actionsRow.setAlignment(Pos.CENTER_LEFT);
         actionsRow.getChildren().addAll(
-                loadButton, saveButton, addButton, editButton, delButton,
-                new Separator(Orientation.VERTICAL),
-                genButton, benchButton, statsButton, raceDemoButton, clearButton);
+                loadButton, saveButton, importButton, exportButton,
+                addButton, editButton, delButton, compareFormatsButton,
+                new Separator(Orientation.VERTICAL), genButton,
+                benchButton, statsButton, raceDemoButton, clearButton
+        );
+
         // Вторая строчка панели
         FlowPane searchRow = new FlowPane(TOOLBAR_HGAP, TOOLBAR_VGAP);
         searchRow.setAlignment(Pos.CENTER_LEFT);

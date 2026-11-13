@@ -1,10 +1,14 @@
 package model;
 
+import java.io.Serial;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
 public class ProductWithWarranty extends Product {
+
+    @Serial
+    private static final long serialVersionUID = 1L;
 
     private final LocalDate startOfWarranty;
     private final int warrantyMonths;
@@ -26,15 +30,13 @@ public class ProductWithWarranty extends Product {
             errors.add("warrantyMonths должен быть > 0");
         if (startOfWarranty != null && startOfWarranty.isAfter(LocalDate.now()))
             errors.add("дата начала гарантии не может быть в будущем");
-
         return errors;
     }
-
 
     @Override public EntityType getType() { return EntityType.WARRANTY; }
 
     public LocalDate getStartOfWarranty() { return startOfWarranty; }
-    public int getWarrantyMonths() { return warrantyMonths; }
+    public int getWarrantyMonths()        { return warrantyMonths; }
 
     public LocalDate getWarrantyEndDate() {
         return startOfWarranty == null ? null : startOfWarranty.plusMonths(warrantyMonths);

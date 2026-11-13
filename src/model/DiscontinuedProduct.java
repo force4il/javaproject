@@ -1,8 +1,13 @@
 package model;
 
+import java.io.Serial;
+
 /** read-only класс. */
 public record DiscontinuedProduct(long itemNumber, String productName, String category,
                                   long price, int remainder) implements CatalogItem {
+
+    @Serial
+    private static final long serialVersionUID = 1L;
 
     public DiscontinuedProduct(Product p) {
         this(p.getItemNumberRaw(), p.getProductName(), p.getCategory(),
