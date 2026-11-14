@@ -28,6 +28,10 @@ public final class JsonCatalogSerializer implements Serializer<List<CatalogItem>
         return "json";
     }
 
+    public int getFieldSchemaVersion() {
+        return SCHEMA_VERSION;
+    }
+
     private static JsonNode required(JsonNode node, String key) throws IOException {
         JsonNode value = node.get(key);
         if (value == null || value.isNull())
@@ -161,13 +165,13 @@ public final class JsonCatalogSerializer implements Serializer<List<CatalogItem>
     }
 
     private static void validateSchemaVersion(int version) throws IOException {
+        if (version < 1)
+            throw new IOException("Некорректная версия схемы JSON: schema_version=" + version);
+
         if (version > SCHEMA_VERSION)
             throw new IOException("JSON-файл создан в более новой версии приложения: "
                     + "schema_version=" + version + " > " + SCHEMA_VERSION
                     + ". Обновите приложение или сохраните файл в текущей версии.");
-
-        if (version < 1)
-            throw new IOException("Некорректная версия схемы JSON: schema_version=" + version);
 
         if (version < SCHEMA_VERSION)
             throw new IOException("JSON-файл версии " + version

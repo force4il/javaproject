@@ -102,6 +102,14 @@ public final class BinaryCatalogSerializer implements Serializer<List<CatalogIte
         }
     }
 
+    public int getHeaderMagic() {
+        return HEADER_MAGIC;
+    }
+
+    public int getSchemaVersion() {
+        return SCHEMA_VERSION;
+    }
+
     private static void readAndValidateHeader(ObjectInputStream in) throws IOException {
         int magic, version;
         try {
@@ -120,6 +128,9 @@ public final class BinaryCatalogSerializer implements Serializer<List<CatalogIte
                     "BIN-файл не является каталогом: неверный заголовок "
                             + "(возможно, создан старой версией без заголовка; пересохраните файл)");
 
+        if (version < 1)
+            throw new BinLoadException("Некорректная версия схемы BIN: schema_version=" + version);
+
         if (version > SCHEMA_VERSION)
             throw new BinLoadException(
                     "BIN-файл создан в более новой версии приложения: "
@@ -131,9 +142,6 @@ public final class BinaryCatalogSerializer implements Serializer<List<CatalogIte
                     "BIN-файл версии " + version
                             + " не поддерживается текущей версией (ожидается " + SCHEMA_VERSION
                             + "). Требуется миграция.");
-
-        if (version < 1)
-            throw new BinLoadException("Некорректная версия схемы BIN: schema_version=" + version);
     }
 
     private static final class BinLoadException extends IOException {
