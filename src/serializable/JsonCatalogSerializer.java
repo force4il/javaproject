@@ -16,7 +16,7 @@ import java.util.*;
 
 public final class JsonCatalogSerializer implements Serializer<List<CatalogItem>> {
 
-    public static final int SCHEMA_VERSION = 1;
+    public static final int SCHEMA_VERSION = 2;
 
     private static final String FIELD_SCHEMA_VERSION = "schema_version";
     private static final String FIELD_ITEMS = "items";

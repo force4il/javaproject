@@ -34,12 +34,7 @@ public final class BinaryCatalogSerializer implements Serializer<List<CatalogIte
                     new BufferedOutputStream(Files.newOutputStream(temp)))) {
                 out.writeInt(HEADER_MAGIC);
                 out.writeInt(SCHEMA_VERSION);
-
-                for (CatalogItem ignored : items)
-                    checkCancelled();
-
                 out.writeObject(new ArrayList<>(items));
-                out.flush();
             }
 
             checkCancelled();

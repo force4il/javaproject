@@ -3,6 +3,7 @@ package model;
 import java.io.Serial;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 public class Product implements Editable, CatalogItem {
 
@@ -72,5 +73,21 @@ public class Product implements Editable, CatalogItem {
         return "Product{itemNumber=" + itemNumber + ", productName='" + productName
                 + "', category='" + category + "', price=" + price
                 + ", remainder=" + remainder + '}';
+    }
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;   // тип учитываем
+        Product other = (Product) o;
+        return itemNumber == other.itemNumber
+                && price == other.price
+                && remainder == other.remainder
+                && Objects.equals(productName, other.productName)
+                && Objects.equals(category, other.category);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(itemNumber, productName, category, price, remainder);
     }
 }

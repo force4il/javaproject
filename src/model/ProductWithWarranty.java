@@ -4,6 +4,7 @@ import java.io.Serial;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 public class ProductWithWarranty extends Product {
 
@@ -47,5 +48,18 @@ public class ProductWithWarranty extends Product {
         return "ProductWithWarranty{itemNumber=" + itemNumber
                 + ", productName='" + productName + "', start=" + startOfWarranty
                 + ", months=" + warrantyMonths + '}';
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (!super.equals(o)) return false;       // уже проверил getClass() и базовые поля
+        ProductWithWarranty other = (ProductWithWarranty) o;  // безопасно
+        return warrantyMonths == other.warrantyMonths
+                && Objects.equals(startOfWarranty, other.startOfWarranty);
+    }
+
+    @Override
+    public int hashCode() {
+        return 31 * super.hashCode() + Objects.hash(startOfWarranty, warrantyMonths);
     }
 }
