@@ -8,8 +8,6 @@ import model.*;
 
 import java.io.*;
 import java.nio.file.*;
-import java.time.LocalDate;
-import java.time.format.DateTimeParseException;
 import java.util.*;
 
 public final class JsonCatalogSerializer implements Serializer<List<CatalogItem>> {
@@ -163,8 +161,6 @@ public final class JsonCatalogSerializer implements Serializer<List<CatalogItem>
                 if (result.size() >= CatalogCodec.MAX_ITEMS)
                     throw new IOException("Превышен лимит " + CatalogCodec.MAX_ITEMS + " записей");
                 result.add(item);
-            } catch (MigrationException ex) {
-                throw new IOException("Строка " + line + ": " + ex.getMessage(), ex);
             } catch (IOException ex) {
                 throw new IOException("Строка " + line + ": " + ex.getMessage(), ex);
             }
@@ -179,51 +175,37 @@ public final class JsonCatalogSerializer implements Serializer<List<CatalogItem>
         String type = node.has("type") ? string(node, "type") : "Product";
         validateItemFields(node, type, sourceVersion);
 
-        long id = integer(node, "itemNumber");
-        String name = string(node, "productName");
-        String category = string(node, "category");
-        long price = integer(node, "price");
-        int stock = integer(node, "remainder");
+        CatalogRecord r = new CatalogRecord();
+        r.type = type;
+        r.itemNumber = integer(node, "itemNumber");
+        r.productName = string(node, "productName");
+        r.category = string(node, "category");
+        r.price = integer(node, "price");
+        r.remainder = integer(node, "remainder");
 
-        String start = null;
-        Integer months = null;
         if ("Warranty".equals(type)) {
-            start = string(node, "startOfWarranty");
-            months = integer(node, "warrantyMonths");
+            r.startOfWarranty = string(node, "startOfWarranty");
+            r.warrantyMonths = integer(node, "warrantyMonths");
         }
-
-        // --- staged migration: sourceVersion -> v3 ---
-        String supplier = "";
-        String countryOfOrigin = "";
-        int discountPercent = 0;
-        LocalDate manufactureDate = Product.DEFAULT_MANUFACTURE_DATE;
-
         if (sourceVersion >= CatalogVersions.V2) {
-            supplier = optionalString(node, "supplier", "");
-            countryOfOrigin = optionalString(node, "countryOfOrigin", "");
+            r.supplier = optionalString(node, "supplier", "");
+            r.countryOfOrigin = optionalString(node, "countryOfOrigin", "");
         }
-
         if (sourceVersion >= CatalogVersions.V3) {
-            discountPercent = optionalInt(node, "discountPercent", 0);
-            String mfg = optionalString(node, "manufactureDate", null);
-
-            if (mfg != null && !mfg.isEmpty()) {
-                try {
-                    manufactureDate = LocalDate.parse(mfg);
-                } catch (DateTimeParseException e) {
-                    throw new MigrationException(MigrationException.Reason.BAD_FIELD,
-                            "Некорректная дата manufactureDate: '" + mfg + "'...", e);
-                }
-            }
+            r.discountPercent = optionalInt(node, "discountPercent", 0);
+            r.manufactureDate = optionalString(node, "manufactureDate", null);
         }
+
+        CatalogMigrations.migrateToCurrent(r, sourceVersion);
 
         try {
-            return CatalogCodec.create(type, id, name, category, price, stock, start, months,
-                    supplier, countryOfOrigin, discountPercent, manufactureDate);
+            return CatalogMigrations.toItem(r);
+        } catch (MigrationException e) {
+            throw e;
         } catch (IOException e) {
             throw new MigrationException(MigrationException.Reason.BAD_FIELD,
                     "Ошибка миграции v" + sourceVersion + " → v" + CatalogVersions.CURRENT
-                            + " (артикул " + id + "): " + e.getMessage(), e);
+                            + " (артикул " + r.itemNumber + "): " + e.getMessage(), e);
         }
     }
 

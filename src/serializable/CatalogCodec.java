@@ -111,4 +111,31 @@ final class CatalogCodec {
         }
         return List.copyOf(items);
     }
+
+    static CatalogItem fromRecord(CatalogRecord r) throws IOException {
+        if (r == null || r.type == null)
+            throw new IOException("Пустая запись каталога");
+
+        boolean discontinued = r.isDiscontinued();
+
+        LocalDate mfg = null;
+        if (!discontinued && r.manufactureDate != null) {
+            String mfgStr = r.manufactureDate.trim();
+            if (!mfgStr.isEmpty()) {
+                try {
+                    mfg = LocalDate.parse(mfgStr);
+                } catch (DateTimeParseException e) {
+                    throw new MigrationException(MigrationException.Reason.BAD_FIELD,
+                            "Некорректная дата manufactureDate: '" + r.manufactureDate + "'", e);
+                }
+            }
+        }
+
+        int discount = r.discountPercent == null ? 0 : r.discountPercent;
+        String sup = r.supplier == null ? "" : r.supplier;
+        String cnt = r.countryOfOrigin == null ? "" : r.countryOfOrigin;
+
+        return create(r.type, r.itemNumber, r.productName, r.category, r.price, r.remainder,
+                r.startOfWarranty, r.warrantyMonths, sup, cnt, discount, mfg);
+    }
 }

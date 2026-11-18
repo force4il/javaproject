@@ -4,8 +4,6 @@ import model.*;
 
 import java.io.*;
 import java.nio.file.*;
-import java.time.LocalDate;
-import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.concurrent.CancellationException;
 
@@ -83,47 +81,6 @@ public final class BinaryCatalogSerializer implements Serializer<List<CatalogIte
         return out;
     }
 
-    private static ItemV1Dto toV1(CatalogItem it) {
-        String start = null; Integer months = null;
-        if (it instanceof ProductWithWarranty w) {
-            start = w.getStartOfWarranty() == null ? null : w.getStartOfWarranty().toString();
-            months = w.getWarrantyMonths();
-        }
-        return new ItemV1Dto(it.getType().getCsvName(), it.getItemNumber(),
-                it.getProductName(), it.getCategory(), it.getPrice(), it.getRemainder(),
-                start, months);
-    }
-
-    private static ItemV2Dto toV2(CatalogItem it) {
-        String start = null, sup = "", cnt = ""; Integer months = null;
-        if (it instanceof ProductWithWarranty w) {
-            start = w.getStartOfWarranty().toString(); months = w.getWarrantyMonths();
-        }
-        if (it instanceof Product p) {
-            sup = p.getSupplier() == null ? "" : p.getSupplier();
-            cnt = p.getCountryOfOrigin() == null ? "" : p.getCountryOfOrigin();
-        }
-        return new ItemV2Dto(it.getType().getCsvName(), it.getItemNumber(),
-                it.getProductName(), it.getCategory(), it.getPrice(), it.getRemainder(),
-                start, months, sup, cnt);
-    }
-
-    private static ItemV3Dto toV3(CatalogItem it) {
-        String start = null, sup = "", cnt = "", mfg = null; Integer months = null; int disc = 0;
-        if (it instanceof ProductWithWarranty w) {
-            start = w.getStartOfWarranty().toString(); months = w.getWarrantyMonths();
-        }
-        if (it instanceof Product p) {
-            sup = p.getSupplier() == null ? "" : p.getSupplier();
-            cnt = p.getCountryOfOrigin() == null ? "" : p.getCountryOfOrigin();
-            disc = p.getDiscountPercent();
-            mfg = p.getManufactureDate().toString();
-        }
-        return new ItemV3Dto(it.getType().getCsvName(), it.getItemNumber(),
-                it.getProductName(), it.getCategory(), it.getPrice(), it.getRemainder(),
-                start, months, sup, cnt, disc, mfg);
-    }
-
     @Override
     public LoadResult<List<CatalogItem>> load(Path file) throws IOException {
         if (Files.size(file) > CatalogCodec.MAX_FILE_BYTES)
@@ -188,56 +145,98 @@ public final class BinaryCatalogSerializer implements Serializer<List<CatalogIte
     }
 
     private static CatalogItem migrateV1(Object o) throws IOException {
-        ItemV1Dto d;
-        if (o instanceof ItemV1Dto dto) d = dto;
-        else if (o instanceof CatalogItem it) d = toV1(it);     // legacy object from old files
-        else throw new MigrationException(MigrationException.Reason.CORRUPTED,
+        CatalogRecord r;
+        if (o instanceof ItemV1Dto d) {
+            r = baseRecord(d.type, d.itemNumber, d.productName, d.category, d.price, d.remainder);
+            r.startOfWarranty = d.startOfWarranty;
+            r.warrantyMonths = d.warrantyMonths;
+        } else if (o instanceof CatalogItem it) {
+            r = fromLegacyV1(it);
+        } else {
+            throw new MigrationException(MigrationException.Reason.CORRUPTED,
                     "Unexpected class in v1 BIN: " + o.getClass().getName());
-
-        return safeCreate(d.type, d.itemNumber, d.productName, d.category, d.price, d.remainder,
-                d.startOfWarranty, d.warrantyMonths,
-                "", "", 0, Product.DEFAULT_MANUFACTURE_DATE, 1); // <--- дефолт
+        }
+        return migrateAndCreate(r, CatalogVersions.V1);
     }
 
     private static CatalogItem migrateV2(Object o) throws IOException {
         if (!(o instanceof ItemV2Dto d))
             throw new MigrationException(MigrationException.Reason.CORRUPTED,
                     "Unexpected class in v2 BIN: " + o.getClass().getName());
-        return safeCreate(d.type, d.itemNumber, d.productName, d.category, d.price, d.remainder,
-                d.startOfWarranty, d.warrantyMonths,
-                d.supplier, d.countryOfOrigin, 0, Product.DEFAULT_MANUFACTURE_DATE , 2);
+        CatalogRecord r = baseRecord(d.type, d.itemNumber, d.productName, d.category, d.price, d.remainder);
+        r.startOfWarranty = d.startOfWarranty;
+        r.warrantyMonths = d.warrantyMonths;
+        r.supplier = d.supplier;
+        r.countryOfOrigin = d.countryOfOrigin;
+        return migrateAndCreate(r, CatalogVersions.V2);
     }
 
     private static CatalogItem migrateV3(Object o) throws IOException {
         if (!(o instanceof ItemV3Dto d))
             throw new MigrationException(MigrationException.Reason.CORRUPTED,
                     "Unexpected class in v3 BIN: " + o.getClass().getName());
-        LocalDate mfg = Product.DEFAULT_MANUFACTURE_DATE;
-        if (d.manufactureDate != null && !d.manufactureDate.isEmpty()) {
-            try {
-                mfg = LocalDate.parse(d.manufactureDate);
-            } catch (DateTimeParseException e) {
-                throw new MigrationException(MigrationException.Reason.BAD_FIELD,
-                        "Некорректная дата manufactureDate: '" + d.manufactureDate + "'...", e);
-            }
-        }
-        return safeCreate(d.type, d.itemNumber, d.productName, d.category, d.price, d.remainder,
-                d.startOfWarranty, d.warrantyMonths,
-                d.supplier, d.countryOfOrigin, d.discountPercent, mfg, 3);
+        CatalogRecord r = baseRecord(d.type, d.itemNumber, d.productName, d.category, d.price, d.remainder);
+        r.startOfWarranty = d.startOfWarranty;
+        r.warrantyMonths = d.warrantyMonths;
+        r.supplier = d.supplier;
+        r.countryOfOrigin = d.countryOfOrigin;
+        r.discountPercent = d.discountPercent;
+        r.manufactureDate = d.manufactureDate;
+        return migrateAndCreate(r, CatalogVersions.V3);
     }
 
-    private static CatalogItem safeCreate(String type, long id, String name, String category,
-                                          long price, int stock, String start, Integer months,
-                                          String sup, String cnt, int disc, LocalDate mfg,
-                                          int srcVersion) throws IOException {
+    private static CatalogRecord baseRecord(String type, long id, String name, String cat, long price, int rem) {
+        CatalogRecord r = new CatalogRecord();
+        r.type = type; r.itemNumber = id; r.productName = name; r.category = cat;
+        r.price = price; r.remainder = rem;
+        return r;
+    }
+
+    private static CatalogRecord fromLegacyV1(CatalogItem it) {
+        CatalogRecord r = baseRecord(it.getType().getCsvName(), it.getItemNumber(),
+                it.getProductName(), it.getCategory(), it.getPrice(), it.getRemainder());
+        if (it instanceof ProductWithWarranty w) {
+            r.startOfWarranty = w.getStartOfWarranty() == null ? null : w.getStartOfWarranty().toString();
+            r.warrantyMonths = w.getWarrantyMonths();
+        }
+        return r;
+    }
+
+    private static CatalogItem migrateAndCreate(CatalogRecord r, int srcVersion) throws IOException {
+        CatalogMigrations.migrateToCurrent(r, srcVersion);
         try {
-            return CatalogCodec.create(type, id, name, category, price, stock, start, months,
-                    sup, cnt, disc, mfg);
+            return CatalogMigrations.toItem(r);
+        } catch (MigrationException e) {
+            throw e;
         } catch (IOException e) {
             throw new MigrationException(MigrationException.Reason.BAD_FIELD,
                     "Ошибка миграции v" + srcVersion + " → v" + CatalogVersions.CURRENT
-                            + " (артикул " + id + "): " + e.getMessage(), e);
+                            + " (артикул " + r.itemNumber + "): " + e.getMessage(), e);
         }
+    }
+
+    private static ItemV1Dto toV1(CatalogItem it) {
+        CatalogRecord r = CatalogRecord.from(it);
+        return new ItemV1Dto(r.type, r.itemNumber, r.productName, r.category, r.price, r.remainder,
+                r.startOfWarranty, r.warrantyMonths);
+    }
+
+    private static ItemV2Dto toV2(CatalogItem it) {
+        CatalogRecord r = CatalogRecord.from(it);
+        return new ItemV2Dto(r.type, r.itemNumber, r.productName, r.category, r.price, r.remainder,
+                r.startOfWarranty, r.warrantyMonths,
+                r.supplier == null ? "" : r.supplier,
+                r.countryOfOrigin == null ? "" : r.countryOfOrigin);
+    }
+
+    private static ItemV3Dto toV3(CatalogItem it) {
+        CatalogRecord r = CatalogRecord.from(it);
+        return new ItemV3Dto(r.type, r.itemNumber, r.productName, r.category, r.price, r.remainder,
+                r.startOfWarranty, r.warrantyMonths,
+                r.supplier == null ? "" : r.supplier,
+                r.countryOfOrigin == null ? "" : r.countryOfOrigin,
+                r.discountPercent == null ? 0 : r.discountPercent,
+                r.manufactureDate);
     }
 
     private static void checkCancelled() {
