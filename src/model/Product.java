@@ -86,8 +86,6 @@ public class Product implements Editable, CatalogItem {
                     + MIN_DISCOUNT_PERCENT + ".." + MAX_DISCOUNT_PERCENT + "]");
         if (manufactureDate != null && manufactureDate.isAfter(LocalDate.now()))
             errors.add("manufactureDate не может быть в будущем");
-        if (manufactureDate != null && manufactureDate.isAfter(LocalDate.now()))
-            errors.add("manufactureDate не может быть в будущем");
 
         return errors;
     }

@@ -11,7 +11,6 @@ public final class BinaryCatalogSerializer implements Serializer<List<CatalogIte
 
     private static final int HEADER_MAGIC = 0x42434154;
 
-    // DTOs per version — serialized inside ObjectOutputStream.
     record ItemV1Dto(String type, long itemNumber, String productName, String category,
                      long price, int remainder, String startOfWarranty, Integer warrantyMonths)
             implements Serializable {
@@ -53,7 +52,7 @@ public final class BinaryCatalogSerializer implements Serializer<List<CatalogIte
                     new BufferedOutputStream(Files.newOutputStream(temp)))) {
                 out.writeInt(HEADER_MAGIC);
                 out.writeInt(targetVersion);
-                out.writeObject(toDtos(items, targetVersion));
+                out.writeObject(toDos(items, targetVersion));
             }
             checkCancelled();
             try {
@@ -67,19 +66,35 @@ public final class BinaryCatalogSerializer implements Serializer<List<CatalogIte
         }
     }
 
-    private static List<Object> toDtos(List<CatalogItem> items, int version) {
+    private static List<Object> toDos(List<CatalogItem> items, int version) {
         List<Object> out = new ArrayList<>(items.size());
         for (CatalogItem it : items) {
             CatalogCodec.checkCancelled();
-            switch (version) {
-                case 1 -> out.add(toV1(it));
-                case 2 -> out.add(toV2(it));
-                case 3 -> out.add(toV3(it));
-                default -> throw new IllegalStateException("bad version " + version);
-            }
+            out.add(toDto(CatalogRecord.from(it), version));
         }
         return out;
     }
+
+    /** Единственное место, где решается, какие поля писать для данной версии. */
+    private static Object toDto(CatalogRecord r, int version) {
+        String sup = nullToEmpty(r.supplier);
+        String cnt = nullToEmpty(r.countryOfOrigin);
+        int discount = r.discountPercent == null ? 0 : r.discountPercent;
+
+        return switch (version) {
+            case 1 -> new ItemV1Dto(r.type, r.itemNumber, r.productName, r.category,
+                    r.price, r.remainder, r.startOfWarranty, r.warrantyMonths);
+            case 2 -> new ItemV2Dto(r.type, r.itemNumber, r.productName, r.category,
+                    r.price, r.remainder, r.startOfWarranty, r.warrantyMonths,
+                    sup, cnt);
+            case 3 -> new ItemV3Dto(r.type, r.itemNumber, r.productName, r.category,
+                    r.price, r.remainder, r.startOfWarranty, r.warrantyMonths,
+                    sup, cnt, discount, r.manufactureDate);
+            default -> throw new IllegalStateException("bad version " + version);
+        };
+    }
+
+    // ---------- LOAD ----------
 
     @Override
     public LoadResult<List<CatalogItem>> load(Path file) throws IOException {
@@ -121,9 +136,17 @@ public final class BinaryCatalogSerializer implements Serializer<List<CatalogIte
             if (!(data instanceof List<?> list))
                 throw new IOException("BIN-файл повреждён: ожидался список");
 
+            if (list.size() > CatalogCodec.MAX_ITEMS)
+                throw new MigrationException(MigrationException.Reason.CORRUPTED,
+                        "Превышен лимит " + CatalogCodec.MAX_ITEMS + " записей");
+            Set<Integer> seenKeys = new HashSet<>();
             for (Object o : list) {
                 CatalogCodec.checkCancelled();
-                items.add(migrateLoaded(o, version));
+                CatalogItem item = migrateAndCreate(toRecord(o, version), version);
+                if (!seenKeys.add(item.getItemNumber()))
+                    throw new MigrationException(MigrationException.Reason.CORRUPTED,
+                            "Повтор артикула в BIN: " + item.getItemNumber());
+                items.add(item);
             }
         } catch (IOException ex) {
             throw ex;
@@ -134,71 +157,70 @@ public final class BinaryCatalogSerializer implements Serializer<List<CatalogIte
         return new LoadResult<>(List.copyOf(items), sourceVersion, CatalogVersions.CURRENT);
     }
 
-    private static CatalogItem migrateLoaded(Object o, int version) throws IOException {
+    /** Единственное место, где DTO превращается в CatalogRecord. */
+    private static CatalogRecord toRecord(Object o, int version) throws IOException {
         return switch (version) {
-            case 1 -> migrateV1(o);
-            case 2 -> migrateV2(o);
-            case 3 -> migrateV3(o);
+            case 1 -> fromV1(o);
+            case 2 -> fromV2(o);
+            case 3 -> fromV3(o);
             default -> throw new MigrationException(MigrationException.Reason.UNSUPPORTED_VERSION,
                     "Неподдерживаемая версия BIN: " + version);
         };
     }
 
-    private static CatalogItem migrateV1(Object o) throws IOException {
-        CatalogRecord r;
-        if (o instanceof ItemV1Dto d) {
-            r = baseRecord(d.type, d.itemNumber, d.productName, d.category, d.price, d.remainder);
-            r.startOfWarranty = d.startOfWarranty;
-            r.warrantyMonths = d.warrantyMonths;
-        } else if (o instanceof CatalogItem it) {
-            r = fromLegacyV1(it);
-        } else {
-            throw new MigrationException(MigrationException.Reason.CORRUPTED,
-                    "Unexpected class in v1 BIN: " + o.getClass().getName());
-        }
-        return migrateAndCreate(r, CatalogVersions.V1);
-    }
-
-    private static CatalogItem migrateV2(Object o) throws IOException {
-        if (!(o instanceof ItemV2Dto d))
-            throw new MigrationException(MigrationException.Reason.CORRUPTED,
-                    "Unexpected class in v2 BIN: " + o.getClass().getName());
-        CatalogRecord r = baseRecord(d.type, d.itemNumber, d.productName, d.category, d.price, d.remainder);
-        r.startOfWarranty = d.startOfWarranty;
-        r.warrantyMonths = d.warrantyMonths;
-        r.supplier = d.supplier;
-        r.countryOfOrigin = d.countryOfOrigin;
-        return migrateAndCreate(r, CatalogVersions.V2);
-    }
-
-    private static CatalogItem migrateV3(Object o) throws IOException {
-        if (!(o instanceof ItemV3Dto d))
-            throw new MigrationException(MigrationException.Reason.CORRUPTED,
-                    "Unexpected class in v3 BIN: " + o.getClass().getName());
-        CatalogRecord r = baseRecord(d.type, d.itemNumber, d.productName, d.category, d.price, d.remainder);
-        r.startOfWarranty = d.startOfWarranty;
-        r.warrantyMonths = d.warrantyMonths;
-        r.supplier = d.supplier;
-        r.countryOfOrigin = d.countryOfOrigin;
-        r.discountPercent = d.discountPercent;
-        r.manufactureDate = d.manufactureDate;
-        return migrateAndCreate(r, CatalogVersions.V3);
-    }
-
-    private static CatalogRecord baseRecord(String type, long id, String name, String cat, long price, int rem) {
+    /** Общий конструктор для всех v1..v3: базовые поля + гарантия. */
+    private static CatalogRecord baseFromDto(String type, long id, String name, String cat,
+                                             long price, int rem,
+                                             String start, Integer months) {
         CatalogRecord r = new CatalogRecord();
         r.type = type; r.itemNumber = id; r.productName = name; r.category = cat;
         r.price = price; r.remainder = rem;
+        r.startOfWarranty = start; r.warrantyMonths = months;
         return r;
     }
 
-    private static CatalogRecord fromLegacyV1(CatalogItem it) {
-        CatalogRecord r = baseRecord(it.getType().getCsvName(), it.getItemNumber(),
-                it.getProductName(), it.getCategory(), it.getPrice(), it.getRemainder());
-        if (it instanceof ProductWithWarranty w) {
-            r.startOfWarranty = w.getStartOfWarranty() == null ? null : w.getStartOfWarranty().toString();
-            r.warrantyMonths = w.getWarrantyMonths();
-        }
+    private static CatalogRecord fromV1(Object o) throws IOException {
+        // совместимость со совсем старыми файлами, где лежал CatalogItem напрямую
+        if (o instanceof CatalogItem it)
+            return CatalogRecord.from(it);
+        if (!(o instanceof ItemV1Dto(
+                String type, long itemNumber, String productName, String category, long price, int remainder,
+                String startOfWarranty, Integer warrantyMonths
+        )))
+            throw new MigrationException(MigrationException.Reason.CORRUPTED,
+                    "Unexpected class in v1 BIN: " + (o == null ? "null" : o.getClass().getName()));
+        return baseFromDto(type, itemNumber, productName, category,
+                price, remainder, startOfWarranty, warrantyMonths);
+    }
+
+    private static CatalogRecord fromV2(Object o) throws IOException {
+        if (!(o instanceof ItemV2Dto(
+                String type, long itemNumber, String productName, String category, long price, int remainder,
+                String startOfWarranty, Integer warrantyMonths, String supplier, String countryOfOrigin
+        )))
+            throw new MigrationException(MigrationException.Reason.CORRUPTED,
+                    "Unexpected class in v2 BIN: " + (o == null ? "null" : o.getClass().getName()));
+        CatalogRecord r = baseFromDto(type, itemNumber, productName, category,
+                price, remainder, startOfWarranty, warrantyMonths);
+        r.supplier = supplier;
+        r.countryOfOrigin = countryOfOrigin;
+        return r;
+    }
+
+    private static CatalogRecord fromV3(Object o) throws IOException {
+        if (!(o instanceof ItemV3Dto(
+                String type, long itemNumber, String productName, String category, long price, int remainder,
+                String startOfWarranty, Integer warrantyMonths, String supplier, String countryOfOrigin,
+                int discountPercent, String manufactureDate
+        )))
+            throw new MigrationException(MigrationException.Reason.CORRUPTED,
+                    "Unexpected class in v3 BIN: " + (o == null ? "null" : o.getClass().getName()));
+        CatalogRecord r = baseFromDto(type, itemNumber, productName, category,
+                price, remainder, startOfWarranty, warrantyMonths);
+        r.supplier = supplier;
+        r.countryOfOrigin = countryOfOrigin;
+        r.discountPercent = discountPercent;
+        r.manufactureDate = manufactureDate;
         return r;
     }
 
@@ -215,35 +237,11 @@ public final class BinaryCatalogSerializer implements Serializer<List<CatalogIte
         }
     }
 
-    private static ItemV1Dto toV1(CatalogItem it) {
-        CatalogRecord r = CatalogRecord.from(it);
-        return new ItemV1Dto(r.type, r.itemNumber, r.productName, r.category, r.price, r.remainder,
-                r.startOfWarranty, r.warrantyMonths);
-    }
-
-    private static ItemV2Dto toV2(CatalogItem it) {
-        CatalogRecord r = CatalogRecord.from(it);
-        return new ItemV2Dto(r.type, r.itemNumber, r.productName, r.category, r.price, r.remainder,
-                r.startOfWarranty, r.warrantyMonths,
-                r.supplier == null ? "" : r.supplier,
-                r.countryOfOrigin == null ? "" : r.countryOfOrigin);
-    }
-
-    private static ItemV3Dto toV3(CatalogItem it) {
-        CatalogRecord r = CatalogRecord.from(it);
-        return new ItemV3Dto(r.type, r.itemNumber, r.productName, r.category, r.price, r.remainder,
-                r.startOfWarranty, r.warrantyMonths,
-                r.supplier == null ? "" : r.supplier,
-                r.countryOfOrigin == null ? "" : r.countryOfOrigin,
-                r.discountPercent == null ? 0 : r.discountPercent,
-                r.manufactureDate);
-    }
+    private static String nullToEmpty(String s) { return s == null ? "" : s; }
 
     private static void checkCancelled() {
         if (Thread.currentThread().isInterrupted())
             throw new CancellationException("Операция отменена");
     }
 
-    public int getHeaderMagic() { return HEADER_MAGIC; }
-    public int getSchemaVersion() { return currentVersion(); }
 }

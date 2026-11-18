@@ -20,20 +20,7 @@ final class CatalogCodec {
     static CatalogItem create(String type, long id, String name, String category,
                               long price, int stock, String start, Integer months,
                               String supplier, String countryOfOrigin,
-                              int discountPercent, LocalDate manufactureDate)
-            throws IOException {
-
-        if (id < 1 || id > Integer.MAX_VALUE)
-            throw new IOException("Некорректный артикул: " + id);
-        if (price < 0 || price > Integer.MAX_VALUE)
-            throw new IOException("Некорректная цена: " + price + " (артикул " + id + ")");
-        if (stock < 0 || stock >= Product.MAX_REMAINDER)
-            throw new IOException("Некорректный остаток: " + stock + " (артикул " + id + ")");
-        if (name == null || name.isBlank())
-            throw new IOException("Пустое имя у товара " + id);
-        if (category == null || category.isBlank())
-            throw new IOException("Пустая категория у товара " + id);
-
+                              int discountPercent, LocalDate manufactureDate) throws IOException {
         String sup = supplier == null ? "" : supplier;
         String cnt = countryOfOrigin == null ? "" : countryOfOrigin;
 
@@ -46,24 +33,20 @@ final class CatalogCodec {
                     if (start == null || months == null)
                         throw new IOException("Нет данных гарантии для товара " + id);
                     yield new ProductWithWarranty(id, name, category, price, stock,
-                            LocalDate.parse(start), months,
-                            sup, cnt, discountPercent, manufactureDate);
+                            LocalDate.parse(start), months, sup, cnt, discountPercent, manufactureDate);
                 }
                 case "Discontinued" -> {
-                    if (!sup.isEmpty() || !cnt.isEmpty() || discountPercent != 0
-                            || manufactureDate != null)
+                    if (!sup.isEmpty() || !cnt.isEmpty() || discountPercent != 0 || manufactureDate != null)
                         throw new IOException("Поля v2/v3 не применимы к Discontinued (артикул " + id + ")");
                     yield new DiscontinuedProduct(id, name, category, price, stock);
                 }
                 default -> throw new IOException("Неизвестный тип: " + type);
             };
         } catch (DateTimeParseException e) {
-            throw new IOException("Некорректная дата начала гарантии: '" + start
-                    + "' (артикул " + id + ")", e);
+            throw new IOException("Некорректная дата начала гарантии: '" + start + "' (артикул " + id + ")", e);
         } catch (RuntimeException e) {
             throw new IOException("Ошибка восстановления товара " + id, e);
         }
-
         if (item instanceof Editable e) {
             List<String> errors = e.validate();
             if (!errors.isEmpty())

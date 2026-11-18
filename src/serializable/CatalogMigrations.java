@@ -1,6 +1,7 @@
 package serializable;
 
 import model.CatalogItem;
+import model.Product;
 import java.io.IOException;
 
 /**
@@ -30,7 +31,8 @@ public final class CatalogMigrations {
     public static void migrateV2ToV3(CatalogRecord r) {
         if (r.isDiscontinued()) return;
         if (r.discountPercent == null) r.discountPercent = 0;
-        // manufactureDate оставляем null — CatalogCodec подставит DEFAULT.
+        if (r.manufactureDate == null)
+            r.manufactureDate = Product.DEFAULT_MANUFACTURE_DATE.toString();
     }
 
     /** Собирает итоговый CatalogItem из мигрированной записи. */

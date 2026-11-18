@@ -3,7 +3,6 @@ package gui;
 import csv.CsvLoader;
 import csv.CsvSchema;
 import exceptions.TreeOperationException;
-import exceptions.TreeStateException;
 import javafx.concurrent.Task;
 import javafx.scene.control.Alert;
 import javafx.scene.layout.BorderPane;
@@ -85,8 +84,7 @@ public final class ProductController {
         if (file == null)
             return;
 
-        if (!tree.isEmpty() && !Dialogs.confirm(stage, TITLE_LOAD,
-                "Текущее дерево будет очищено. Продолжить?"))
+        if (!tree.isEmpty() && !Dialogs.confirm(stage, TITLE_LOAD, "Текущее дерево будет очищено. Продолжить?"))
             return;
 
         Path path = file.toPath();
@@ -94,12 +92,21 @@ public final class ProductController {
 
         ops.run(task, "Загрузка…", result -> {
             try {
+                boolean migrate = result.sourceVersion() < CatalogVersions.CURRENT;
+                if (migrate && !Dialogs.confirm(stage, "Миграция CSV",
+                        "Файл версии " + result.sourceVersion()
+                                + ". Мигрировать до версии "
+                                + CatalogVersions.CURRENT + "?")) {
+                    ops.setStatus("Загрузка отменена");
+                    return;
+                }
                 tree.replaceAll(result.items());
 
                 currentFile = path;
                 refreshAll();
-                String mig = result.sourceVersion() < CsvSchema.CURRENT_VERSION
-                        ? " (миграция v" + result.sourceVersion() + " → v" + CsvSchema.CURRENT_VERSION + ")"
+                String mig = migrate
+                        ? " (миграция v" + result.sourceVersion()
+                        + " → v" + CatalogVersions.CURRENT + ")"
                         : "";
                 ops.setStatus("Загружено: " + path.getFileName() + mig
                         + " (пропущено строк: " + result.skippedRows().size() + ")");
@@ -107,12 +114,10 @@ public final class ProductController {
                     Dialogs.showSkipped(stage, result.skippedRows());
 
             } catch (TreeOperationException ex) {
-                //при ошибке старое дерево остается
                 Dialogs.showTreeError(stage, TITLE_LOAD, ex);
             }
         }, TITLE_LOAD);
     }
-
     private void onSave() {
         File file = InputDialogs.chooseSaveCsv(stage, currentFile);
         if (file == null) return;
@@ -194,23 +199,29 @@ public final class ProductController {
 
         ops.run(serialization.loadTask(serializer, file.toPath()), "Импорт…",
                 result -> {
-                    if (!tree.isEmpty()) {
-                        String message = "Файл: " + file.getName() + "\n"
-                                + "Формат: " + serializer.format() + "\n"
-                                + "Версия в файле: v" + result.sourceVersion()
-                                + (result.sourceVersion() != result.targetVersion()
-                                ? " (будет мигрирован до v" + result.targetVersion() + ")" : "")
-                                + "\nЗаписей: " + result.data().size() + "\n\n"
-                                + "Текущее дерево будет заменено. Продолжить?";
-                        if (!Dialogs.confirm(stage, "Импорт", message)) {
-                            ops.setStatus("Импорт отменён"); return;
+                    boolean migrate = result.sourceVersion() != result.targetVersion();
+                    if (!tree.isEmpty() || migrate) {
+                        StringBuilder msg = new StringBuilder();
+                        msg.append("Файл: ").append(file.getName()).append("\n")
+                                .append("Формат: ").append(serializer.format()).append("\n")
+                                .append("Версия в файле: v").append(result.sourceVersion()).append("\n")
+                                .append("Записей: ").append(result.data().size()).append("\n\n");
+                        if (!tree.isEmpty())
+                            msg.append("Текущее дерево будет заменено.\n");
+                        if (migrate)
+                            msg.append("Мигрировать до версии ")
+                                    .append(result.targetVersion()).append("?");
+                        if (!Dialogs.confirm(stage, "Импорт", msg.toString())) {
+                            ops.setStatus("Импорт отменён");
+                            return;
                         }
                     }
                     try {
                         tree.replaceAll(result.data());
                         refreshAll();
-                        String mig = result.sourceVersion() != result.targetVersion()
-                                ? " (миграция v" + result.sourceVersion() + " → v" + result.targetVersion() + ")"
+                        String mig = migrate
+                                ? " (миграция v" + result.sourceVersion()
+                                + " → v" + result.targetVersion() + ")"
                                 : "";
                         ops.setStatus("Импортировано: " + result.data().size() + " записей" + mig);
                     } catch (TreeOperationException ex) {
@@ -292,9 +303,6 @@ public final class ProductController {
             found = tree.search(key);
         } catch (TreeOperationException ex) {
             Dialogs.showTreeError(stage, TITLE_SEARCH, ex);
-            return;
-        } catch (TreeStateException ex) {
-            Dialogs.showError(stage, TITLE_SEARCH, ex.getMessage());
             return;
         }
         view.visualizer.redraw();

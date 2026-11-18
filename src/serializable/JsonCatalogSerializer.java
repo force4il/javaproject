@@ -161,8 +161,12 @@ public final class JsonCatalogSerializer implements Serializer<List<CatalogItem>
                 if (result.size() >= CatalogCodec.MAX_ITEMS)
                     throw new IOException("Превышен лимит " + CatalogCodec.MAX_ITEMS + " записей");
                 result.add(item);
+            } catch (MigrationException ex) {
+                throw new MigrationException(ex.getReason(),
+                        "Строка " + line + ": " + ex.getMessage(), ex);
             } catch (IOException ex) {
-                throw new IOException("Строка " + line + ": " + ex.getMessage(), ex);
+                throw new MigrationException(MigrationException.Reason.BAD_FIELD,
+                        "Строка " + line + ": " + ex.getMessage(), ex);
             }
         }
     }
@@ -237,10 +241,13 @@ public final class JsonCatalogSerializer implements Serializer<List<CatalogItem>
             throw new IOException("Ожидается строка: " + key);
         return v.textValue();
     }
-    private static String optionalString(JsonNode node, String key, String def) {
+    private static String optionalString(JsonNode node, String key, String def) throws IOException {
         JsonNode v = node.get(key);
         if (v == null || v.isNull()) return def;
-        return v.isTextual() ? v.textValue() : def;
+        if (!v.isTextual())
+            throw new MigrationException(MigrationException.Reason.BAD_FIELD,
+                    "Поле " + key + " должно быть строкой");
+        return v.textValue();
     }
     private static int integer(JsonNode node, String key) throws IOException {
         JsonNode v = required(node, key);
