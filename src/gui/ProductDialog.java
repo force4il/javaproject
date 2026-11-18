@@ -46,6 +46,10 @@ public final class ProductDialog extends Dialog<Product> {
                 existing == null ? "" : String.valueOf(existing.getPriceRaw()));
         TextField remainderField = new TextField(
                 existing == null ? "" : String.valueOf(existing.getRemainder()));
+        TextField supplierField = new TextField(existing == null ? "" : existing.getSupplier());
+        TextField countryField  = new TextField(existing == null ? "" : existing.getCountryOfOrigin());
+        TextField discountField = new TextField(existing == null ? "" : String.valueOf(existing.getDiscountPercent()));
+        DatePicker mfgPicker    = new DatePicker(existing == null ? null : existing.getManufactureDate());
 
         DatePicker startDatePicker = new DatePicker();
         TextField warrantyMonths = new TextField();
@@ -63,22 +67,42 @@ public final class ProductDialog extends Dialog<Product> {
         grid.setPadding(new Insets(15));
 
         int row = 0;
+
         grid.add(new Label("Тип:"), 0, row);
         grid.add(new HBox(10, productRadio, warrantyRadio), 1, row++);
+
         grid.add(new Label("Артикул:"), 0, row);
         grid.add(itemNumberField, 1, row++);
+
         grid.add(new Label("Название:"), 0, row);
         grid.add(nameField, 1, row++);
+
         grid.add(new Label("Категория:"), 0, row);
         grid.add(categoryField, 1, row++);
+
         grid.add(new Label("Цена:"), 0, row);
         grid.add(priceField, 1, row++);
+
         grid.add(new Label("Остаток:"), 0, row);
         grid.add(remainderField, 1, row++);
+
         grid.add(new Label("Начало гарантии:"), 0, row);
         grid.add(startDatePicker, 1, row++);
+
         grid.add(new Label("Гарантия (мес):"), 0, row);
-        grid.add(warrantyMonths, 1, row);
+        grid.add(warrantyMonths, 1, row++);
+
+        grid.add(new Label("Поставщик:"), 0, row);
+        grid.add(supplierField, 1, row++);
+
+        grid.add(new Label("Страна:"), 0, row);
+        grid.add(countryField, 1, row++);
+
+        grid.add(new Label("Скидка (%):"), 0, row);
+        grid.add(discountField, 1, row++);
+
+        grid.add(new Label("Дата изгот.:"), 0, row);
+        grid.add(mfgPicker, 1, row++);
 
         getDialogPane().setContent(grid);
 
@@ -88,8 +112,12 @@ public final class ProductDialog extends Dialog<Product> {
         Button okButton = (Button) getDialogPane().lookupButton(okType);
         okButton.addEventFilter(ActionEvent.ACTION, evt -> {
             try {
-                Product candidate = parseResult(productRadio, itemNumberField, nameField, categoryField, priceField, remainderField, startDatePicker, warrantyMonths);
-
+                Product candidate = parseResult(productRadio,
+                        itemNumberField, nameField, categoryField,
+                        priceField, remainderField,
+                        startDatePicker, warrantyMonths,
+                        supplierField, countryField,
+                        discountField, mfgPicker);
                 // проверка уникальности артикула
                 boolean sameAsExisting = existing != null && candidate.getItemNumberRaw() == existing.getItemNumberRaw();
                 if (!sameAsExisting && keyInUse != null) {
@@ -116,26 +144,53 @@ public final class ProductDialog extends Dialog<Product> {
         setResultConverter(bt -> bt == okType ? lastResult : null);
     }
 
-    private static Product parseResult(RadioButton productRadio, TextField itemNumberField,
-                                       TextField nameField, TextField categoryField,
-                                       TextField priceField, TextField remainderField,
-                                       DatePicker startDatePicker, TextField warrantyMonths) {
+    private static Product parseResult(
+            RadioButton productRadio, TextField itemNumberField, TextField nameField,
+                                       TextField categoryField,
+                                       TextField priceField,
+                                       TextField remainderField,
+                                       DatePicker startDatePicker,
+                                       TextField warrantyMonths,
+                                       TextField supplierField,
+                                       TextField countryField,
+                                       TextField discountField,
+                                       DatePicker mfgPicker) {
+
         long itemNumber = parseLong(itemNumberField, "Артикул");
         String name = nameField.getText();
         String category = categoryField.getText();
         long price = parseLong(priceField, "Цена");
         int remainder = parseInt(remainderField, "Остаток");
 
+        // --- поля v2 ---
+        String supplier = supplierField.getText() == null ? "" : supplierField.getText().trim();
+        String countryOfOrigin = countryField.getText() == null ? "" : countryField.getText().trim();
+
+        // --- поля v3 ---
+        int discountPercent;
+        String rawDiscount = discountField.getText() == null ? "" : discountField.getText().trim();
+        if (rawDiscount.isEmpty())
+            discountPercent = 0;
+        else
+            discountPercent = parseInt(discountField, "Скидка %");
+
+        LocalDate manufactureDate = mfgPicker.getValue();
+        if (manufactureDate == null) {
+            manufactureDate = Product.DEFAULT_MANUFACTURE_DATE;
+        }
+        // --- сборка сущности ---
         if (productRadio.isSelected())
-            return new Product(itemNumber, name, category, price, remainder);
+            return new Product(itemNumber, name, category, price, remainder,
+                    supplier, countryOfOrigin, discountPercent, manufactureDate);
 
         LocalDate start = startDatePicker.getValue();
         if (start == null)
             throw new IllegalArgumentException("Не указана дата начала гарантии");
 
         int months = parseInt(warrantyMonths, "Гарантия (мес)");
+
         return new ProductWithWarranty(itemNumber, name, category, price, remainder,
-                start, months);
+                start, months, supplier, countryOfOrigin, discountPercent, manufactureDate);
     }
 
     private static long parseLong(TextField field, String label) {

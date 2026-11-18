@@ -1,6 +1,7 @@
 package gui;
 
 import csv.CsvLoader;
+import csv.CsvSchema;
 import exceptions.TreeOperationException;
 import exceptions.TreeStateException;
 import javafx.concurrent.Task;
@@ -97,10 +98,14 @@ public final class ProductController {
 
                 currentFile = path;
                 refreshAll();
-                ops.setStatus("Загружено: " + path.getFileName()
+                String mig = result.sourceVersion() < CsvSchema.CURRENT_VERSION
+                        ? " (миграция v" + result.sourceVersion() + " → v" + CsvSchema.CURRENT_VERSION + ")"
+                        : "";
+                ops.setStatus("Загружено: " + path.getFileName() + mig
                         + " (пропущено строк: " + result.skippedRows().size() + ")");
                 if (!result.skippedRows().isEmpty())
                     Dialogs.showSkipped(stage, result.skippedRows());
+
             } catch (TreeOperationException ex) {
                 //при ошибке старое дерево остается
                 Dialogs.showTreeError(stage, TITLE_LOAD, ex);
@@ -110,16 +115,20 @@ public final class ProductController {
 
     private void onSave() {
         File file = InputDialogs.chooseSaveCsv(stage, currentFile);
-        if (file == null)
-            return;
-
+        if (file == null) return;
+        Integer version = InputDialogs.chooseVersion(stage, CsvSchema.CURRENT_VERSION, "Версия CSV");
+        if (version == null) return;
+        if (version < CsvSchema.CURRENT_VERSION) {
+            String loss = CatalogVersions.lossFromTo(CsvSchema.CURRENT_VERSION, version);
+            if (!Dialogs.confirm(stage, "Потеря данных",
+                    "Сохранение в CSV v" + version + " приведёт к потере полей:\n"
+                            + loss + "\nПродолжить?")) return;
+        }
         Path path = file.toPath();
         List<CatalogItem> snapshot = new ArrayList<>(tree.all());
-
-        Task<Void> task = files.saveTask(snapshot, path);
-        ops.run(task, "Сохранение…", ignored -> {
+        ops.run(files.saveTask(snapshot, path, version), "Сохранение…", ignored -> {
             currentFile = path;
-            ops.setStatus("Сохранено: " + path.getFileName());
+            ops.setStatus("Сохранено: " + path.getFileName() + " (v" + version + ")");
         }, TITLE_SAVE);
     }
 
@@ -149,18 +158,25 @@ public final class ProductController {
         FileChooser chooser = serialChooser("Экспорт каталога");
         chooser.setInitialFileName("catalog.json");
         File file = chooser.showSaveDialog(stage);
-        if (file == null)
-            return;
+        if (file == null) return;
 
-        try {
-            Serializer<List<CatalogItem>> serializer = serializerFor(file);
-            var snapshot = new ArrayList<>(tree.all());
+        final Serializer<List<CatalogItem>> serializer;
+        try { serializer = serializerFor(file); }
+        catch (IllegalArgumentException ex) { Dialogs.showError(stage, "Экспорт", ex.getMessage()); return; }
 
-            ops.run(serialization.saveTask(serializer, snapshot, file.toPath()), "Экспорт…",
-                    ignored -> ops.setStatus("Экспортировано: " + file.getName()), "Экспорт");
-        } catch (IllegalArgumentException ex) {
-            Dialogs.showError(stage, "Экспорт", ex.getMessage());
+        Integer version = InputDialogs.chooseVersion(stage, serializer.currentVersion(), "Версия экспорта");
+        if (version == null) return;
+        if (version < serializer.currentVersion()) {
+            String loss = serializer.describeDowngradeLoss(version);
+            if (!Dialogs.confirm(stage, "Потеря данных",
+                    "Экспорт в v" + version + " приведёт к потере полей:\n" + loss + "\nПродолжить?"))
+                return;
         }
+
+        var snapshot = new ArrayList<>(tree.all());
+        ops.run(serialization.saveTask(serializer, snapshot, file.toPath(), version), "Экспорт…",
+                ignored -> ops.setStatus("Экспортировано: " + file.getName() + " (v" + version + ")"),
+                "Экспорт");
     }
 
     private void onImport() {
@@ -177,28 +193,30 @@ public final class ProductController {
         }
 
         ops.run(serialization.loadTask(serializer, file.toPath()), "Импорт…",
-                loaded -> {
+                result -> {
                     if (!tree.isEmpty()) {
                         String message = "Файл: " + file.getName() + "\n"
                                 + "Формат: " + serializer.format() + "\n"
-                                + "Записей в файле: " + loaded.size() + "\n\n"
+                                + "Версия в файле: v" + result.sourceVersion()
+                                + (result.sourceVersion() != result.targetVersion()
+                                ? " (будет мигрирован до v" + result.targetVersion() + ")" : "")
+                                + "\nЗаписей: " + result.data().size() + "\n\n"
                                 + "Текущее дерево будет заменено. Продолжить?";
                         if (!Dialogs.confirm(stage, "Импорт", message)) {
-                            ops.setStatus("Импорт отменён");
-                            return;
+                            ops.setStatus("Импорт отменён"); return;
                         }
                     }
-
                     try {
-                        tree.replaceAll(loaded);
+                        tree.replaceAll(result.data());
                         refreshAll();
-                        ops.setStatus("Импортировано: " + loaded.size() + " записей из " + file.getName());
+                        String mig = result.sourceVersion() != result.targetVersion()
+                                ? " (миграция v" + result.sourceVersion() + " → v" + result.targetVersion() + ")"
+                                : "";
+                        ops.setStatus("Импортировано: " + result.data().size() + " записей" + mig);
                     } catch (TreeOperationException ex) {
                         Dialogs.showTreeError(stage, "Импорт", ex);
                     }
-                },
-                "Импорт"
-        );
+                }, "Импорт");
     }
 
     private void onAdd() {

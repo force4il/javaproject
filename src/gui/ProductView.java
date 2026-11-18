@@ -90,6 +90,8 @@ public final class ProductView {
         tv.getColumns().add(column("Цена", i -> String.valueOf(i.getPrice())));
         tv.getColumns().add(column("Остаток", i -> String.valueOf(i.getRemainder())));
         tv.getColumns().add(column("Гарантия до", ProductView::warrantyEndOf));
+        tv.getColumns().add(column("Поставщик", i -> i instanceof model.Product p ? p.getSupplier() : ""));
+        tv.getColumns().add(column("Скидка, %", i -> i instanceof model.Product p ? String.valueOf(p.getDiscountPercent()) : ""));
         return tv;
     }
 

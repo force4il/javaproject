@@ -7,6 +7,7 @@ import exceptions.TreeException;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonType;
 import javafx.stage.Window;
+import serializable.MigrationException;
 
 import java.util.List;
 
@@ -77,5 +78,15 @@ public final class Dialogs {
         a.setHeaderText(null);
         a.setContentText(message);
         a.showAndWait();
+    }
+
+    public static void showMigrationError(Window owner, String action, MigrationException e) {
+        String hint = switch (e.getReason()) {
+            case FUTURE_VERSION -> "Обновите приложение или сохраните файл в текущей версии.";
+            case UNSUPPORTED_VERSION -> "Файл слишком старый и не поддерживается.";
+            case CORRUPTED -> "Файл повреждён.";
+            case BAD_FIELD -> "Поле содержит недопустимое значение.";
+        };
+        showError(owner, action + " — ошибка миграции", e.getMessage() + "\n\n" + hint);
     }
 }

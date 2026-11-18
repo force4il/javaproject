@@ -4,11 +4,13 @@ import javafx.event.ActionEvent;
 import javafx.geometry.Insets;
 import javafx.scene.control.*;
 import javafx.scene.layout.GridPane;
+import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 
 import java.io.File;
 import java.nio.file.Path;
+import java.util.List;
 
 public final class InputDialogs {
 
@@ -105,5 +107,65 @@ public final class InputDialogs {
                 return false;
 
         return true;
+    }
+
+    public record VersionOption(int version, String title, String description) {
+        @Override
+        public String toString() {
+            return "v" + version + " — " + title;
+        }
+    }
+
+    public static Integer chooseVersion(Stage owner, int currentVersion, String title) {
+        List<VersionOption> options = List.of(
+                new VersionOption(1, "Базовая",
+                        "Содержит только базовые поля: артикул, название, категория, цена, остаток.\n" +
+                                "Для гарантии: дата начала и срок."),
+                new VersionOption(2, "Логистика",
+                        "Все поля v1 + данные о поставке:\n" +
+                                "• supplier (поставщик)\n" +
+                                "• countryOfOrigin (страна происхождения)"),
+                new VersionOption(3, "Коммерческая",
+                        "Все поля v2 + коммерческие данные:\n" +
+                                "• discountPercent (скидка, %)\n" +
+                                "• manufactureDate (дата изготовления)")
+        );
+
+        Dialog<Integer> dlg = new Dialog<>();
+        dlg.initOwner(owner);
+        dlg.setTitle(title);
+        dlg.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+
+        ComboBox<VersionOption> combo = new ComboBox<>();
+        combo.getItems().addAll(options);
+        combo.setValue(options.stream()
+                .filter(o -> o.version() == currentVersion)
+                .findFirst()
+                .orElse(options.get(options.size() - 1)));
+
+        Label descLabel = new Label();
+        descLabel.setWrapText(true);
+        descLabel.setStyle("-fx-text-fill: #4a5568; -fx-font-size: 12px;");
+        descLabel.setMinHeight(60);
+
+        combo.valueProperty().addListener((obs, oldV, newV) -> {
+            if (newV != null) {
+                String warning = newV.version() < currentVersion
+                        ? "\n\n Внимание: Экспорт в старую версию приведёт к безвозвратной потере полей из v" + currentVersion + "!"
+                        : "";
+                descLabel.setText(newV.description() + warning);
+            }
+        });
+        descLabel.setText(combo.getValue().description());
+
+        VBox content = new VBox(10, new Label("Выберите целевую схему данных:"), combo, new Separator(), descLabel);
+        content.setPadding(new Insets(15));
+        content.setPrefWidth(420);
+
+        dlg.getDialogPane().setContent(content);
+
+        dlg.setResultConverter(bt -> bt == ButtonType.OK ? combo.getValue().version() : null);
+
+        return dlg.showAndWait().orElse(null);
     }
 }

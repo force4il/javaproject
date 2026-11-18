@@ -12,6 +12,8 @@ import javafx.stage.Stage;
 import java.util.List;
 import java.util.function.Consumer;
 
+import serializable.MigrationException;
+
 public final class OperationSupport {
 
     private static final String BUSY_TITLE = "Операция";
@@ -81,6 +83,7 @@ public final class OperationSupport {
             case TreeOperationException te -> Dialogs.showTreeError(stage, action, te);
             case CsvException ce -> Dialogs.showCsvError(stage, action, ce);
             case AppException ae -> Dialogs.showAppError(stage, action, ae);
+            case MigrationException me -> Dialogs.showMigrationError(stage, action, me);
             case null, default -> Dialogs.showError(stage, action + " — ошибка",
                     ex == null ? "Неизвестная ошибка" : String.valueOf(ex.getMessage()));
         }

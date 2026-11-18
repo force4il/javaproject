@@ -1,10 +1,12 @@
 package serializable;
 
 import model.CatalogItem;
+import model.Product;
 import model.ProductWithWarranty;
 import java.io.IOException;
 import java.nio.file.*;
 import java.util.List;
+import java.util.Objects;
 
 public final class FormatBenchmark {
     private FormatBenchmark() {}
@@ -26,7 +28,7 @@ public final class FormatBenchmark {
                 CatalogCodec.checkCancelled();
 
                 t = System.nanoTime();
-                List<CatalogItem> restored = serializer.load(file);
+                List<CatalogItem> restored = serializer.load(file).data();
                 load += System.nanoTime() - t;
 
                 CatalogCodec.checkCancelled();
@@ -70,6 +72,13 @@ public final class FormatBenchmark {
             if (!pwA.getStartOfWarranty().equals(pwB.getStartOfWarranty()))
                 return false;
             return pwA.getWarrantyMonths() == pwB.getWarrantyMonths();
+        }
+
+        if (a instanceof Product pa && b instanceof Product pb) {
+            if (!Objects.equals(pa.getSupplier(), pb.getSupplier())) return false;
+            if (!Objects.equals(pa.getCountryOfOrigin(), pb.getCountryOfOrigin())) return false;
+            if (pa.getDiscountPercent() != pb.getDiscountPercent()) return false;
+            if (!Objects.equals(pa.getManufactureDate(), pb.getManufactureDate())) return false;
         }
 
         return true;

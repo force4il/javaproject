@@ -17,9 +17,19 @@ public class ProductWithWarranty extends Product {
     public ProductWithWarranty(long itemNumber, String productName, String category,
                                long price, int remainder,
                                LocalDate startOfWarranty, int warrantyMonths) {
-        super(itemNumber, productName, category, price, remainder);
+        this(itemNumber, productName, category, price, remainder,
+                startOfWarranty, warrantyMonths, "", "", 0, Product.DEFAULT_MANUFACTURE_DATE);
+    }
+
+    public ProductWithWarranty(long itemNumber, String productName, String category,
+                               long price, int remainder,
+                               LocalDate startOfWarranty, int warrantyMonths,
+                               String supplier, String countryOfOrigin,
+                               int discountPercent, LocalDate manufactureDate) {
+        super(itemNumber, productName, category, price, remainder,
+                supplier, countryOfOrigin, discountPercent, manufactureDate);
         this.startOfWarranty = startOfWarranty;
-        this.warrantyMonths  = warrantyMonths;
+        this.warrantyMonths = warrantyMonths;
     }
 
     @Override

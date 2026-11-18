@@ -10,36 +10,31 @@ import java.util.concurrent.CancellationException;
 
 public final class SerializationService {
 
-    public Task<Void> saveTask(Serializer<List<CatalogItem>> serializer, List<CatalogItem> snapshot, Path path) {
+    public Task<Serializer.LoadResult<List<CatalogItem>>> loadTask(
+            Serializer<List<CatalogItem>> serializer, Path path) {
         return new Task<>() {
-            @Override
-            protected Void call() throws Exception {
-                updateMessage("Экспорт " + serializer.format() + "…");
-                if (isCancelled())
-                    throw new CancellationException();
+            @Override protected Serializer.LoadResult<List<CatalogItem>> call() throws Exception {
+                updateMessage("Импорт " + serializer.format() + "…");
+                if (isCancelled()) throw new CancellationException();
+                var result = serializer.load(path);
+                if (isCancelled()) throw new CancellationException();
+                updateProgress(1, 1);
+                return result;
+            }
+        };
+    }
 
-                serializer.save(snapshot, path);
+    public Task<Void> saveTask(Serializer<List<CatalogItem>> serializer,
+                               List<CatalogItem> snapshot, Path path, int targetVersion) {
+        return new Task<>() {
+            @Override protected Void call() throws Exception {
+                updateMessage("Экспорт " + serializer.format() + " v" + targetVersion + "…");
+                if (isCancelled()) throw new CancellationException();
+                serializer.save(snapshot, path, targetVersion);
                 updateProgress(1, 1);
                 return null;
             }
         };
     }
 
-    public Task<List<CatalogItem>> loadTask(Serializer<List<CatalogItem>> serializer, Path path) {
-        return new Task<>() {
-            @Override
-            protected List<CatalogItem> call() throws Exception {
-                updateMessage("Импорт " + serializer.format() + "…");
-                if (isCancelled())
-                    throw new CancellationException();
-
-                List<CatalogItem> result = serializer.load(path);
-                if (isCancelled())
-                    throw new CancellationException();
-
-                updateProgress(1, 1);
-                return result;
-            }
-        };
-    }
 }
