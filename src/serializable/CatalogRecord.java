@@ -14,7 +14,6 @@ public final class CatalogRecord {
     public long price;
     public int remainder;
 
-    // Warranty-only
     public String startOfWarranty;
     public Integer warrantyMonths;
 
@@ -30,7 +29,6 @@ public final class CatalogRecord {
         return "Discontinued".equals(type);
     }
 
-    /** Копирует данные из готового CatalogItem (для сохранения по версиям). */
     public static CatalogRecord from(CatalogItem item) {
         Objects.requireNonNull(item);
         CatalogRecord r = new CatalogRecord();

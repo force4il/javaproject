@@ -18,11 +18,6 @@ import java.util.concurrent.CancellationException;
 /** Фоновые задачи для загрузки/сохранения CSV. */
 public final class FileService {
 
-    /**
-     * Загружает CSV, проверяет записи через промежуточное {@link TreeService}
-     * (отсекает дубликаты по артикулу), возвращает принятые записи,
-     * пропущенные строки и исходную версию схемы.
-     */
     public Task<CsvLoader.LoadResult> loadTask(Path file) {
         return new Task<>() {
             @Override
@@ -44,34 +39,22 @@ public final class FileService {
 
                     CatalogItem item = result.items().get(i);
                     try {
-                        if (temporary.insertIfAbsent(item)) {
+                        if (temporary.insertIfAbsent(item))
                             accepted.add(item);
-                        } else {
+                        else
                             skipped.add(new CsvLoader.SkippedRow(-1,
                                     new CsvParseException(ErrorCode.TREE_DUPLICATE_KEY,
                                             "Повторный артикул: " + item.getItemNumber())));
-                        }
                     } catch (TreeOperationException ex) {
                         skipped.add(new CsvLoader.SkippedRow(-1,
-                                new CsvParseException(ErrorCode.PARSE_ERROR,
-                                        ex.getMessage(), ex)));
+                                new CsvParseException(ErrorCode.PARSE_ERROR, ex.getMessage(), ex)));
                     }
                     updateProgress(i + 1, total);
                 }
 
-                // Версия схемы из файла пробрасывается наверх —
-                // ProductController использует её в статусе и предупреждениях.
-                return new CsvLoader.LoadResult(
-                        List.copyOf(accepted),
-                        List.copyOf(skipped),
-                        result.sourceVersion());
+                return new CsvLoader.LoadResult(List.copyOf(accepted), List.copyOf(skipped), result.sourceVersion());
             }
         };
-    }
-
-    /** Сохранение в текущей версии схемы. */
-    public Task<Void> saveTask(List<CatalogItem> snapshot, Path file) {
-        return saveTask(snapshot, file, CsvSchema.CURRENT_VERSION);
     }
 
     public Task<Void> saveTask(List<CatalogItem> snapshot, Path file, int targetVersion) {
@@ -85,8 +68,6 @@ public final class FileService {
                 try {
                     CsvSave.save(snapshot, file, targetVersion);
                 } catch (CsvException ex) {
-                    // Пробрасываем как есть — OperationSupport распознает CsvException
-                    // и покажет Dialogs.showCsvError.
                     throw ex;
                 }
 

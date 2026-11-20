@@ -7,7 +7,7 @@ import exceptions.TreeException;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonType;
 import javafx.stage.Window;
-import serializable.MigrationException;
+import exceptions.MigrationException;
 
 import java.util.List;
 
@@ -70,8 +70,7 @@ public final class Dialogs {
         showInfo(owner, "Пропущенные строки", sb.toString());
     }
 
-    private static void show(Window owner, Alert.AlertType type,
-                             String title, String message) {
+    private static void show(Window owner, Alert.AlertType type, String title, String message) {
         Alert a = new Alert(type);
         a.initOwner(owner);
         a.setTitle(title);

@@ -12,7 +12,7 @@ import javafx.stage.Stage;
 import java.util.List;
 import java.util.function.Consumer;
 
-import serializable.MigrationException;
+import exceptions.MigrationException;
 
 public final class OperationSupport {
 

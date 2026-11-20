@@ -41,6 +41,7 @@ public final class FormatBenchmark {
                         throw new IOException("Данные были повреждены при сериализации/десериализации. "
                                 + "Исходный: " + items.get(j) + ", Восстановленный: " + restored.get(j));
             }
+
             return new Result(serializer.format(), Files.size(file), save / 5_000_000.0, load / 5_000_000.0);
         } finally {
             Files.deleteIfExists(file);
@@ -54,7 +55,6 @@ public final class FormatBenchmark {
         if (a == null || b == null)
             return false;
 
-        // Сравниваем базовые поля
         if (a.getType() != b.getType())
             return false;
         if (a.getItemNumber() != b.getItemNumber())
@@ -71,14 +71,19 @@ public final class FormatBenchmark {
         if (a instanceof ProductWithWarranty pwA && b instanceof ProductWithWarranty pwB) {
             if (!pwA.getStartOfWarranty().equals(pwB.getStartOfWarranty()))
                 return false;
+
             return pwA.getWarrantyMonths() == pwB.getWarrantyMonths();
         }
 
         if (a instanceof Product pa && b instanceof Product pb) {
-            if (!Objects.equals(pa.getSupplier(), pb.getSupplier())) return false;
-            if (!Objects.equals(pa.getCountryOfOrigin(), pb.getCountryOfOrigin())) return false;
-            if (pa.getDiscountPercent() != pb.getDiscountPercent()) return false;
-            if (!Objects.equals(pa.getManufactureDate(), pb.getManufactureDate())) return false;
+            if (!Objects.equals(pa.getSupplier(), pb.getSupplier()))
+                return false;
+            if (!Objects.equals(pa.getCountryOfOrigin(), pb.getCountryOfOrigin()))
+                return false;
+            if (pa.getDiscountPercent() != pb.getDiscountPercent())
+                return false;
+
+            return Objects.equals(pa.getManufactureDate(), pb.getManufactureDate());
         }
 
         return true;

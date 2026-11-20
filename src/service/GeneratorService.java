@@ -15,8 +15,7 @@ public final class GeneratorService {
     private static final int PROGRESS_MASK = 0xFF;
     public static final int MAX_COUNT = 70000;
 
-    public int generate(TreeService tree, int count, long seed,
-                        IntConsumer progress, BooleanSupplier cancel) {
+    public int generate(TreeService tree, int count, long seed, IntConsumer progress, BooleanSupplier cancel) {
         if (count <= 0 || count > MAX_COUNT)
             throw new IllegalArgumentException(
                     "count должен быть в диапазоне [1.." + MAX_COUNT + "], получено " + count);
@@ -24,7 +23,6 @@ public final class GeneratorService {
         Random rnd = new Random(seed);
         HashSet<Integer> used = new HashSet<>(count * 2);
         int inserted = 0;
-
         for (int i = 0; i < count; i++) {
             if (cancel != null && cancel.getAsBoolean())
                 return inserted;
@@ -39,13 +37,13 @@ public final class GeneratorService {
                 if (tree.insertIfAbsent(it))
                     inserted++;
             } catch (TreeOperationException e) {
-                throw new IllegalStateException(
-                        "generator produced invalid key: " + num, e);
+                throw new IllegalStateException("generator produced invalid key: " + num, e);
             }
 
             if (progress != null && (i & PROGRESS_MASK) == 0)
                 progress.accept(i);
         }
+
         return inserted;
     }
 }

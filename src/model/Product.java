@@ -39,8 +39,7 @@ public class Product implements Editable, CatalogItem {
     }
 
     public Product(long itemNumber, String productName, String category,
-                   long price, int remainder,
-                   String supplier, String countryOfOrigin,
+                   long price, int remainder, String supplier, String countryOfOrigin,
                    int discountPercent, LocalDate manufactureDate) {
         this.itemNumber = itemNumber;
         this.productName = productName;
@@ -56,20 +55,23 @@ public class Product implements Editable, CatalogItem {
     @Serial
     private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
         in.defaultReadObject();
-        if (supplier == null) supplier = "";
-        if (countryOfOrigin == null) countryOfOrigin = "";
-        if (manufactureDate == null) manufactureDate = DEFAULT_MANUFACTURE_DATE;
+        if (supplier == null)
+            supplier = "";
+
+        if (countryOfOrigin == null)
+            countryOfOrigin = "";
+
+        if (manufactureDate == null)
+            manufactureDate = DEFAULT_MANUFACTURE_DATE;
     }
 
     @Override
     public List<String> validate() {
         List<String> errors = new ArrayList<>();
         if (checkToInt(itemNumber))
-            errors.add("itemNumber = " + itemNumber + " не вмещается в int ("
-                    + Integer.MIN_VALUE + ".." + Integer.MAX_VALUE + ")");
+            errors.add("itemNumber = " + itemNumber + " не вмещается в int (" + Integer.MIN_VALUE + ".." + Integer.MAX_VALUE + ")");
         if (checkToInt(price))
-            errors.add("price = " + price + " не вмещается в int ("
-                    + Integer.MIN_VALUE + ".." + Integer.MAX_VALUE + ")");
+            errors.add("price = " + price + " не вмещается в int (" + Integer.MIN_VALUE + ".." + Integer.MAX_VALUE + ")");
         if (itemNumber < MIN_ITEM_NUMBER)
             errors.add("itemNumber должен быть больше " + MIN_ITEM_NUMBER);
         if (productName == null || productName.isBlank())
@@ -79,11 +81,9 @@ public class Product implements Editable, CatalogItem {
         if (price < MIN_NUM_BORDER)
             errors.add("price не может быть меньше " + MIN_NUM_BORDER);
         if (remainder < MIN_NUM_BORDER || remainder >= MAX_REMAINDER)
-            errors.add("remainder не может быть меньше " + MIN_NUM_BORDER
-                    + " или большим " + MAX_REMAINDER);
+            errors.add("remainder не может быть меньше " + MIN_NUM_BORDER + " или большим " + MAX_REMAINDER);
         if (discountPercent < MIN_DISCOUNT_PERCENT || discountPercent > MAX_DISCOUNT_PERCENT)
-            errors.add("discountPercent вне диапазона ["
-                    + MIN_DISCOUNT_PERCENT + ".." + MAX_DISCOUNT_PERCENT + "]");
+            errors.add("discountPercent вне диапазона [" + MIN_DISCOUNT_PERCENT + ".." + MAX_DISCOUNT_PERCENT + "]");
         if (manufactureDate != null && manufactureDate.isAfter(LocalDate.now()))
             errors.add("manufactureDate не может быть в будущем");
 

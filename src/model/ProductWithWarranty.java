@@ -15,19 +15,15 @@ public class ProductWithWarranty extends Product {
     private final int warrantyMonths;
 
     public ProductWithWarranty(long itemNumber, String productName, String category,
-                               long price, int remainder,
-                               LocalDate startOfWarranty, int warrantyMonths) {
+                               long price, int remainder, LocalDate startOfWarranty, int warrantyMonths) {
         this(itemNumber, productName, category, price, remainder,
                 startOfWarranty, warrantyMonths, "", "", 0, Product.DEFAULT_MANUFACTURE_DATE);
     }
 
     public ProductWithWarranty(long itemNumber, String productName, String category,
-                               long price, int remainder,
-                               LocalDate startOfWarranty, int warrantyMonths,
-                               String supplier, String countryOfOrigin,
-                               int discountPercent, LocalDate manufactureDate) {
-        super(itemNumber, productName, category, price, remainder,
-                supplier, countryOfOrigin, discountPercent, manufactureDate);
+                               long price, int remainder, LocalDate startOfWarranty, int warrantyMonths,
+                               String supplier, String countryOfOrigin, int discountPercent, LocalDate manufactureDate) {
+        super(itemNumber, productName, category, price, remainder, supplier, countryOfOrigin, discountPercent, manufactureDate);
         this.startOfWarranty = startOfWarranty;
         this.warrantyMonths = warrantyMonths;
     }
@@ -41,6 +37,7 @@ public class ProductWithWarranty extends Product {
             errors.add("warrantyMonths должен быть > 0");
         if (startOfWarranty != null && startOfWarranty.isAfter(LocalDate.now()))
             errors.add("дата начала гарантии не может быть в будущем");
+
         return errors;
     }
 
@@ -62,10 +59,11 @@ public class ProductWithWarranty extends Product {
 
     @Override
     public boolean equals(Object o) {
-        if (!super.equals(o)) return false;       // уже проверил getClass() и базовые поля
-        ProductWithWarranty other = (ProductWithWarranty) o;  // безопасно
-        return warrantyMonths == other.warrantyMonths
-                && Objects.equals(startOfWarranty, other.startOfWarranty);
+        if (!super.equals(o))
+            return false;
+
+        ProductWithWarranty other = (ProductWithWarranty) o;
+        return warrantyMonths == other.warrantyMonths && Objects.equals(startOfWarranty, other.startOfWarranty);
     }
 
     @Override

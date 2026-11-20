@@ -1,5 +1,6 @@
 package serializable;
 
+import exceptions.MigrationException;
 import model.*;
 import java.io.IOException;
 import java.time.LocalDate;
@@ -38,6 +39,7 @@ final class CatalogCodec {
                 case "Discontinued" -> {
                     if (!sup.isEmpty() || !cnt.isEmpty() || discountPercent != 0 || manufactureDate != null)
                         throw new IOException("Поля v2/v3 не применимы к Discontinued (артикул " + id + ")");
+
                     yield new DiscontinuedProduct(id, name, category, price, stock);
                 }
                 default -> throw new IOException("Неизвестный тип: " + type);
@@ -95,15 +97,32 @@ final class CatalogCodec {
         return List.copyOf(items);
     }
 
+
     static CatalogItem fromRecord(CatalogRecord r) throws IOException {
-        if (r == null || r.type == null)
-            throw new IOException("Пустая запись каталога");
+        if (r == null || r.type == null) {
+            throw new MigrationException(MigrationException.Reason.BAD_FIELD,
+                    "Пустая запись каталога или отсутствует тип товара"
+            );
+        }
 
         boolean discontinued = r.isDiscontinued();
+        if (discontinued) {
+            boolean hasExtraFields =
+                    (r.supplier != null && !r.supplier.isEmpty())
+                            || (r.countryOfOrigin != null && !r.countryOfOrigin.isEmpty())
+                            || (r.discountPercent != null && r.discountPercent != 0)
+                            || (r.manufactureDate != null && !r.manufactureDate.isEmpty());
+
+            if (hasExtraFields) {
+                throw new MigrationException(MigrationException.Reason.BAD_FIELD,
+                        "Поля v2/v3 не применимы к Discontinued (артикул " + r.itemNumber + ")");
+            }
+        }
 
         LocalDate mfg = null;
         if (!discontinued && r.manufactureDate != null) {
             String mfgStr = r.manufactureDate.trim();
+
             if (!mfgStr.isEmpty()) {
                 try {
                     mfg = LocalDate.parse(mfgStr);
@@ -121,4 +140,5 @@ final class CatalogCodec {
         return create(r.type, r.itemNumber, r.productName, r.category, r.price, r.remainder,
                 r.startOfWarranty, r.warrantyMonths, sup, cnt, discount, mfg);
     }
+
 }

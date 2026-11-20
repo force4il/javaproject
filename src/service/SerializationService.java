@@ -15,9 +15,13 @@ public final class SerializationService {
         return new Task<>() {
             @Override protected Serializer.LoadResult<List<CatalogItem>> call() throws Exception {
                 updateMessage("Импорт " + serializer.format() + "…");
-                if (isCancelled()) throw new CancellationException();
+                if (isCancelled())
+                    throw new CancellationException();
+
                 var result = serializer.load(path);
-                if (isCancelled()) throw new CancellationException();
+                if (isCancelled())
+                    throw new CancellationException();
+
                 updateProgress(1, 1);
                 return result;
             }
@@ -29,7 +33,9 @@ public final class SerializationService {
         return new Task<>() {
             @Override protected Void call() throws Exception {
                 updateMessage("Экспорт " + serializer.format() + " v" + targetVersion + "…");
-                if (isCancelled()) throw new CancellationException();
+                if (isCancelled())
+                    throw new CancellationException();
+
                 serializer.save(snapshot, path, targetVersion);
                 updateProgress(1, 1);
                 return null;

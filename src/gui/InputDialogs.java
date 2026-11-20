@@ -118,14 +118,14 @@ public final class InputDialogs {
 
     public static Integer chooseVersion(Stage owner, int currentVersion, String title) {
         List<VersionOption> options = List.of(
-                new VersionOption(1, "Базовая",
+                new VersionOption(1, "версия 1",
                         "Содержит только базовые поля: артикул, название, категория, цена, остаток.\n" +
                                 "Для гарантии: дата начала и срок."),
-                new VersionOption(2, "Логистика",
+                new VersionOption(2, "версия 2",
                         "Все поля v1 + данные о поставке:\n" +
                                 "• supplier (поставщик)\n" +
                                 "• countryOfOrigin (страна происхождения)"),
-                new VersionOption(3, "Коммерческая",
+                new VersionOption(3, "версия 3",
                         "Все поля v2 + коммерческие данные:\n" +
                                 "• discountPercent (скидка, %)\n" +
                                 "• manufactureDate (дата изготовления)")

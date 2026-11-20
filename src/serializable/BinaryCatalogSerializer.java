@@ -1,5 +1,6 @@
 package serializable;
 
+import exceptions.MigrationException;
 import model.*;
 
 import java.io.*;
@@ -10,6 +11,36 @@ import java.util.concurrent.CancellationException;
 public final class BinaryCatalogSerializer implements Serializer<List<CatalogItem>> {
 
     private static final int HEADER_MAGIC = 0x42434154;
+
+    private static final ObjectInputFilter CATALOG_FILTER = info -> {
+        if (info.depth() > 30 || info.references() > 2_000_000 || info.arrayLength() > CatalogCodec.MAX_ITEMS)
+            return ObjectInputFilter.Status.REJECTED;
+
+        Class<?> cls = info.serialClass();
+
+        if (cls == null)
+            return ObjectInputFilter.Status.UNDECIDED;
+
+        if (cls.isArray()) {
+            Class<?> component = cls;
+            while (component.isArray())
+                component = component.getComponentType();
+
+            if (component.isPrimitive() || component == Object.class || component == String.class)
+                return ObjectInputFilter.Status.ALLOWED;
+
+            return ObjectInputFilter.Status.REJECTED;
+        }
+
+        if (cls == ItemV1Dto.class || cls == ItemV2Dto.class || cls == ItemV3Dto.class
+                || cls == ArrayList.class || cls == String.class || cls == Object.class
+                || cls == Number.class || cls == Integer.class || cls == Long.class) {
+            return ObjectInputFilter.Status.ALLOWED;
+        }
+
+        return ObjectInputFilter.Status.REJECTED;
+    };
+
 
     record ItemV1Dto(String type, long itemNumber, String productName, String category,
                      long price, int remainder, String startOfWarranty, Integer warrantyMonths)
@@ -56,8 +87,7 @@ public final class BinaryCatalogSerializer implements Serializer<List<CatalogIte
             }
             checkCancelled();
             try {
-                Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING,
-                        StandardCopyOption.ATOMIC_MOVE);
+                Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
             } catch (AtomicMoveNotSupportedException ex) {
                 throw new IOException("Файловая система не поддерживает атомарное сохранение", ex);
             }
@@ -75,7 +105,6 @@ public final class BinaryCatalogSerializer implements Serializer<List<CatalogIte
         return out;
     }
 
-    /** Единственное место, где решается, какие поля писать для данной версии. */
     private static Object toDto(CatalogRecord r, int version) {
         String sup = nullToEmpty(r.supplier);
         String cnt = nullToEmpty(r.countryOfOrigin);
@@ -94,8 +123,6 @@ public final class BinaryCatalogSerializer implements Serializer<List<CatalogIte
         };
     }
 
-    // ---------- LOAD ----------
-
     @Override
     public LoadResult<List<CatalogItem>> load(Path file) throws IOException {
         if (Files.size(file) > CatalogCodec.MAX_FILE_BYTES)
@@ -108,6 +135,7 @@ public final class BinaryCatalogSerializer implements Serializer<List<CatalogIte
                 new BoundedInputStream(Files.newInputStream(file), CatalogCodec.MAX_FILE_BYTES));
              ObjectInputStream in = new ObjectInputStream(new BufferedInputStream(raw))) {
 
+            in.setObjectInputFilter(CATALOG_FILTER);
             int magic, version;
             try {
                 magic = in.readInt();
@@ -116,10 +144,13 @@ public final class BinaryCatalogSerializer implements Serializer<List<CatalogIte
                 throw new MigrationException(MigrationException.Reason.CORRUPTED,
                         "BIN-файл повреждён: заголовок обрезан", ex);
             } catch (IOException ex) {
-                throw new IOException("BIN-файл не содержит корректного заголовка", ex);
+                throw new MigrationException(MigrationException.Reason.CORRUPTED,
+                        "BIN-файл не содержит корректного заголовка", ex);
             }
-            if (magic != HEADER_MAGIC)
-                throw new IOException("BIN-файл не является каталогом");
+            if (magic != HEADER_MAGIC) {
+                throw new MigrationException(MigrationException.Reason.CORRUPTED,
+                        "BIN-файл не является каталогом");
+            }
             CatalogVersions.validateSupported(version);
             sourceVersion = version;
 
@@ -127,18 +158,26 @@ public final class BinaryCatalogSerializer implements Serializer<List<CatalogIte
             try {
                 data = in.readObject();
             } catch (InvalidClassException ex) {
-                throw new IOException("BIN-файл несовместим с текущей версией: " + ex.getMessage(), ex);
+                throw new MigrationException(MigrationException.Reason.CORRUPTED,
+                        "BIN-файл содержит несовместимые или запрещённые классы", ex);
             } catch (ClassNotFoundException ex) {
-                throw new IOException("BIN-файл повреждён: неизвестный класс", ex);
+                throw new MigrationException(MigrationException.Reason.CORRUPTED,
+                        "BIN-файл содержит неизвестный класс", ex);
             }
+
             if (in.read() != -1)
-                throw new IOException("Лишние данные в конце BIN-файла");
+                throw new MigrationException(MigrationException.Reason.CORRUPTED,
+                        "Лишние данные в конце BIN-файла");
+
             if (!(data instanceof List<?> list))
-                throw new IOException("BIN-файл повреждён: ожидался список");
+                throw new MigrationException(MigrationException.Reason.CORRUPTED,
+                        "BIN-файл повреждён: ожидался список");
+
 
             if (list.size() > CatalogCodec.MAX_ITEMS)
                 throw new MigrationException(MigrationException.Reason.CORRUPTED,
                         "Превышен лимит " + CatalogCodec.MAX_ITEMS + " записей");
+
             Set<Integer> seenKeys = new HashSet<>();
             for (Object o : list) {
                 CatalogCodec.checkCancelled();
@@ -146,18 +185,21 @@ public final class BinaryCatalogSerializer implements Serializer<List<CatalogIte
                 if (!seenKeys.add(item.getItemNumber()))
                     throw new MigrationException(MigrationException.Reason.CORRUPTED,
                             "Повтор артикула в BIN: " + item.getItemNumber());
+
                 items.add(item);
             }
+        } catch (MigrationException ex) {
+            throw ex;
         } catch (IOException ex) {
             throw ex;
         } catch (RuntimeException ex) {
-            throw new IOException("BIN-файл повреждён: " + ex.getMessage(), ex);
+            throw new MigrationException(MigrationException.Reason.CORRUPTED,
+                    "BIN-файл повреждён: " + ex.getMessage(), ex);
         }
 
         return new LoadResult<>(List.copyOf(items), sourceVersion, CatalogVersions.CURRENT);
     }
 
-    /** Единственное место, где DTO превращается в CatalogRecord. */
     private static CatalogRecord toRecord(Object o, int version) throws IOException {
         return switch (version) {
             case 1 -> fromV1(o);
@@ -168,27 +210,32 @@ public final class BinaryCatalogSerializer implements Serializer<List<CatalogIte
         };
     }
 
-    /** Общий конструктор для всех v1..v3: базовые поля + гарантия. */
     private static CatalogRecord baseFromDto(String type, long id, String name, String cat,
-                                             long price, int rem,
-                                             String start, Integer months) {
+                                             long price, int rem, String start, Integer months) {
         CatalogRecord r = new CatalogRecord();
-        r.type = type; r.itemNumber = id; r.productName = name; r.category = cat;
-        r.price = price; r.remainder = rem;
-        r.startOfWarranty = start; r.warrantyMonths = months;
+        r.type = type;
+        r.itemNumber = id;
+        r.productName = name;
+        r.category = cat;
+        r.price = price;
+        r.remainder = rem;
+        r.startOfWarranty = start;
+        r.warrantyMonths = months;
+
         return r;
     }
 
     private static CatalogRecord fromV1(Object o) throws IOException {
-        // совместимость со совсем старыми файлами, где лежал CatalogItem напрямую
         if (o instanceof CatalogItem it)
             return CatalogRecord.from(it);
+
         if (!(o instanceof ItemV1Dto(
                 String type, long itemNumber, String productName, String category, long price, int remainder,
                 String startOfWarranty, Integer warrantyMonths
         )))
             throw new MigrationException(MigrationException.Reason.CORRUPTED,
                     "Unexpected class in v1 BIN: " + (o == null ? "null" : o.getClass().getName()));
+
         return baseFromDto(type, itemNumber, productName, category,
                 price, remainder, startOfWarranty, warrantyMonths);
     }
@@ -200,10 +247,12 @@ public final class BinaryCatalogSerializer implements Serializer<List<CatalogIte
         )))
             throw new MigrationException(MigrationException.Reason.CORRUPTED,
                     "Unexpected class in v2 BIN: " + (o == null ? "null" : o.getClass().getName()));
+
         CatalogRecord r = baseFromDto(type, itemNumber, productName, category,
                 price, remainder, startOfWarranty, warrantyMonths);
         r.supplier = supplier;
         r.countryOfOrigin = countryOfOrigin;
+
         return r;
     }
 
@@ -215,12 +264,14 @@ public final class BinaryCatalogSerializer implements Serializer<List<CatalogIte
         )))
             throw new MigrationException(MigrationException.Reason.CORRUPTED,
                     "Unexpected class in v3 BIN: " + (o == null ? "null" : o.getClass().getName()));
+
         CatalogRecord r = baseFromDto(type, itemNumber, productName, category,
                 price, remainder, startOfWarranty, warrantyMonths);
         r.supplier = supplier;
         r.countryOfOrigin = countryOfOrigin;
         r.discountPercent = discountPercent;
         r.manufactureDate = manufactureDate;
+
         return r;
     }
 

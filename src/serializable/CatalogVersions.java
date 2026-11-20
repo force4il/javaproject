@@ -1,5 +1,7 @@
 package serializable;
 
+import exceptions.MigrationException;
+
 public final class CatalogVersions {
     public static final int V1 = 1;
     public static final int V2 = 2;
@@ -20,12 +22,16 @@ public final class CatalogVersions {
     }
 
     public static String lossFromTo(int from, int to) {
-        if (from <= to) return "";
+        if (from <= to)
+            return "";
+
         StringBuilder sb = new StringBuilder();
         if (from >= V2 && to < V2)
             sb.append("• supplier (поставщик)\n• countryOfOrigin (страна происхождения)\n");
+
         if (from >= V3 && to < V3)
             sb.append("• discountPercent (скидка, %)\n• manufactureDate (дата изготовления)\n");
+
         return sb.toString();
     }
 }

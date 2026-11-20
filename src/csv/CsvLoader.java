@@ -13,7 +13,7 @@ import java.util.*;
 
 import serializable.CatalogMigrations;
 import serializable.CatalogRecord;
-import serializable.MigrationException;
+import exceptions.MigrationException;
 
 public final class CsvLoader {
     private static final char DELIMITER = ';';
@@ -39,7 +39,9 @@ public final class CsvLoader {
                     headerSeen = true;
                     if (parts.length == 1 && parts[0] != null) {
                         String h = parts[0];
-                        if (h.startsWith("\uFEFF")) h = h.substring(1);
+                        if (h.startsWith("\uFEFF"))
+                            h = h.substring(1);
+
                         if (h.startsWith("#schema_version=")) {
                             try {
                                 sourceVersion = Integer.parseInt(h.substring("#schema_version=".length()).trim());
@@ -71,14 +73,15 @@ public final class CsvLoader {
 
     private static void addItem(String[] parts, List<CatalogItem> items, int version)
             throws CsvParseException {
-        if (parts.length == 0) return;
+        if (parts.length == 0)
+            return;
 
         String rawType = cleanTypeName(parts[0]);
-        if (rawType.isEmpty()) return;
+        if (rawType.isEmpty())
+            return;
 
         EntityType type = EntityType.fromCsvName(rawType)
-                .orElseThrow(() -> new CsvParseException(ErrorCode.UNKNOWN_TYPE,
-                        "неизвестный тип записи: " + rawType));
+                .orElseThrow(() -> new CsvParseException(ErrorCode.UNKNOWN_TYPE, "неизвестный тип записи: " + rawType));
 
         CatalogRecord r = parseRecord(parts, type, version);
         CatalogMigrations.migrateToCurrent(r, version);
@@ -118,23 +121,22 @@ public final class CsvLoader {
         if (version >= 3 && type != EntityType.DISCONTINUED) {
             r.discountPercent = parseInt(p[i++], "discountPercent");
             String mfgRaw = optionalText(p[i++]);
-            if (!mfgRaw.isBlank()) {
+            if (!mfgRaw.isBlank())
                 r.manufactureDate = parseDate(mfgRaw, "manufactureDate").toString();
-            }
         }
         return r;
     }
 
-    /** Удаляет BOM и лишние пробелы, возвращает пустую строку, если parts[0] == null */
     private static String cleanTypeName(String raw) {
-        if (raw == null) return "";
+        if (raw == null)
+            return "";
+
         String trimmed = raw.trim();
-        if (!trimmed.isEmpty() && trimmed.charAt(0) == '\uFEFF') {
+        if (!trimmed.isEmpty() && trimmed.charAt(0) == '\uFEFF')
             trimmed = trimmed.substring(1).trim();
-        }
+
         return trimmed;
     }
-    // ---------- primitive parsers (без изменений) ----------
 
     private static void expect(String[] p, int expected, String tag) throws CsvParseException {
         if (p.length != expected)
@@ -142,41 +144,42 @@ public final class CsvLoader {
                     "для " + tag + " ожидалось " + expected + " полей, получено " + p.length);
     }
 
-    private static String optionalText(String v) { return v == null ? "" : v; }
+    private static String optionalText(String v) {
+        return v == null ? "" : v;
+    }
 
     private static void checkEmptyOrNull(String v, String field) throws CsvParseException {
         if (v == null || v.isBlank())
-            throw new CsvParseException(ErrorCode.BAD_FIELD,
-                    "обязательное поле '" + field + "' не заполнено");
+            throw new CsvParseException(ErrorCode.BAD_FIELD, "обязательное поле '" + field + "' не заполнено");
     }
 
     private static String requireText(String v, String field) throws CsvParseException {
-        checkEmptyOrNull(v, field); return v.trim();
+        checkEmptyOrNull(v, field);
+        return v.trim();
     }
 
     private static BigInteger parseBigInteger(String v, String field) throws CsvParseException {
         checkEmptyOrNull(v, field);
-        try { return new BigInteger(v.trim()); }
-        catch (NumberFormatException e) {
-            throw new CsvParseException(ErrorCode.BAD_NUMBER,
-                    "поле '" + field + "' не число: \"" + v + "\"", e);
+        try {
+            return new BigInteger(v.trim());
+        } catch (NumberFormatException e) {
+            throw new CsvParseException(ErrorCode.BAD_NUMBER, "поле '" + field + "' не число: \"" + v + "\"", e);
         }
     }
 
     private static int parseInt(String v, String field) throws CsvParseException {
         BigInteger bi = parseBigInteger(v, field);
-        if (bi.compareTo(BigInteger.valueOf(Integer.MIN_VALUE)) < 0
-                || bi.compareTo(BigInteger.valueOf(Integer.MAX_VALUE)) > 0)
-            throw new CsvParseException(ErrorCode.BAD_INT_RANGE,
-                    "поле '" + field + "' = " + v.trim() + " не помещается в int");
+        if (bi.compareTo(BigInteger.valueOf(Integer.MIN_VALUE)) < 0 || bi.compareTo(BigInteger.valueOf(Integer.MAX_VALUE)) > 0)
+            throw new CsvParseException(ErrorCode.BAD_INT_RANGE, "поле '" + field + "' = " + v.trim() + " не помещается в int");
+
         return bi.intValue();
     }
 
     private static int parseItemNumber(String v) throws CsvParseException {
         int n = parseInt(v, "itemNumber");
         if (n < Product.MIN_ITEM_NUMBER)
-            throw new CsvParseException(ErrorCode.BAD_FIELD,
-                    "поле 'itemNumber' должно быть >= " + Product.MIN_ITEM_NUMBER + ": " + n);
+            throw new CsvParseException(ErrorCode.BAD_FIELD, "поле 'itemNumber' должно быть >= " + Product.MIN_ITEM_NUMBER + ": " + n);
+
         return n;
     }
 
@@ -184,8 +187,7 @@ public final class CsvLoader {
         checkEmptyOrNull(v, field);
         try { return LocalDate.parse(v.trim()); }
         catch (DateTimeParseException e) {
-            throw new CsvParseException(ErrorCode.BAD_DATE,
-                    "поле '" + field + "' не дата: \"" + v + "\"", e);
+            throw new CsvParseException(ErrorCode.BAD_DATE, "поле '" + field + "' не дата: \"" + v + "\"", e);
         }
     }
 }

@@ -20,7 +20,9 @@ public final class BenchmarkRunner {
     private BenchmarkRunner() {}
 
     public record Row(String operation, int n, long nanos) {
-        public double millis() { return nanos / 1_000_000.0; }
+        public double millis() {
+            return nanos / 1_000_000.0;
+        }
     }
 
     public static List<Row> run(int n, long seed, BooleanSupplier cancelled) {
@@ -117,7 +119,6 @@ public final class BenchmarkRunner {
         if (cancelled.getAsBoolean())
             return null;
 
-        // Один и тот же существующий артикул, многократный поиск для точности.
         int target = keys[n / 2];
         final int repeats = 20_000;
         for (int i = 0; i < 2_000; i++) {

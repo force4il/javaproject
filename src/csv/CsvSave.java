@@ -17,8 +17,8 @@ public final class CsvSave {
 
     public static void save(List<CatalogItem> items, Path file, int targetVersion) throws CsvException {
         if (targetVersion < CsvSchema.MIN_VERSION || targetVersion > CsvSchema.CURRENT_VERSION)
-            throw new CsvException(ErrorCode.PARSE_ERROR,
-                    "Неподдерживаемая версия CSV: " + targetVersion);
+            throw new CsvException(ErrorCode.PARSE_ERROR, "Неподдерживаемая версия CSV: " + targetVersion);
+
         Objects.requireNonNull(items, "items");
         Objects.requireNonNull(file, "file");
 
@@ -28,17 +28,21 @@ public final class CsvSave {
             temp = Files.createTempFile(target.getParent(), "catalog-csv-", ".tmp");
             try (var writer = Files.newBufferedWriter(temp);
                  var csvWriter = new CSVWriterBuilder(writer).withSeparator(DELIMITER).build()) {
-                csvWriter.writeNext(new String[]{"#schema_version=" + targetVersion});
-                for (CatalogItem item : items)
+                 csvWriter.writeNext(new String[]{"#schema_version=" + targetVersion});
+                 for (CatalogItem item : items)
                     csvWriter.writeNext(toLine(item, targetVersion));
             }
-            Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING,
-                    StandardCopyOption.ATOMIC_MOVE);
+
+            Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } catch (IOException e) {
-            throw new CsvIOException(ErrorCode.FILE_WRITE,
-                    "Не удалось сохранить файл: " + file, e);
+            throw new CsvIOException(ErrorCode.FILE_WRITE, "Не удалось сохранить файл: " + file, e);
         } finally {
-            if (temp != null) try { Files.deleteIfExists(temp); } catch (IOException ignored) {}
+            if (temp != null)
+                try {
+                    Files.deleteIfExists(temp);
+                } catch (IOException ignored) {
+
+                }
         }
     }
 
@@ -73,6 +77,7 @@ public final class CsvSave {
             out.add(String.valueOf(p.getDiscountPercent()));
             out.add(p.getManufactureDate() == null ? "" : p.getManufactureDate().toString());
         }
+
         return out.toArray(new String[0]);
     }
 
@@ -94,6 +99,7 @@ public final class CsvSave {
             out.add(String.valueOf(pw.getDiscountPercent()));
             out.add(pw.getManufactureDate() == null ? "" : pw.getManufactureDate().toString());
         }
+
         return out.toArray(new String[0]);
     }
 }

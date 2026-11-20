@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "items": [
+    {
+      "type": "Product",
+      "itemNumber": 1,
+      "productName": "Laptop",
+      "category": "Electronics",
+      "price": 1000,
+      "remainder": 5
+    },
+    {
+      "type": "Warranty",
+      "itemNumber": 2,
+      "productName": "Phone",
+      "category": "Electronics",
+      "price": 500,
+      "remainder": 10,
+      "startOfWarranty": "2024-01-15",
+      "warrantyMonths": 24
+    },
+    {
+      "type": "Discontinued",
+      "itemNumber": 3,
+      "productName": "VHS Player",
+      "category": "Retro",
+      "price": 50,
+      "remainder": 2
+    }
+  ]
+}

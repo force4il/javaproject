@@ -38,18 +38,15 @@ public final class ProductDialog extends Dialog<Product> {
         productRadio.setDisable(editing);
         warrantyRadio.setDisable(editing);
 
-        TextField itemNumberField = new TextField(
-                existing == null ? "" : String.valueOf(existing.getItemNumberRaw()));
+        TextField itemNumberField = new TextField(existing == null ? "" : String.valueOf(existing.getItemNumberRaw()));
         TextField nameField = new TextField(existing == null ? "" : existing.getProductName());
         TextField categoryField = new TextField(existing == null ? "" : existing.getCategory());
-        TextField priceField = new TextField(
-                existing == null ? "" : String.valueOf(existing.getPriceRaw()));
-        TextField remainderField = new TextField(
-                existing == null ? "" : String.valueOf(existing.getRemainder()));
+        TextField priceField = new TextField(existing == null ? "" : String.valueOf(existing.getPriceRaw()));
+        TextField remainderField = new TextField(existing == null ? "" : String.valueOf(existing.getRemainder()));
         TextField supplierField = new TextField(existing == null ? "" : existing.getSupplier());
         TextField countryField  = new TextField(existing == null ? "" : existing.getCountryOfOrigin());
         TextField discountField = new TextField(existing == null ? "" : String.valueOf(existing.getDiscountPercent()));
-        DatePicker mfgPicker    = new DatePicker(existing == null ? null : existing.getManufactureDate());
+        DatePicker mfgPicker = new DatePicker(existing == null ? null : existing.getManufactureDate());
 
         DatePicker startDatePicker = new DatePicker();
         TextField warrantyMonths = new TextField();
@@ -118,13 +115,12 @@ public final class ProductDialog extends Dialog<Product> {
                         startDatePicker, warrantyMonths,
                         supplierField, countryField,
                         discountField, mfgPicker);
-                // проверка уникальности артикула
+
                 boolean sameAsExisting = existing != null && candidate.getItemNumberRaw() == existing.getItemNumberRaw();
                 if (!sameAsExisting && keyInUse != null) {
                     long raw = candidate.getItemNumberRaw();
                     if (raw < Integer.MIN_VALUE || raw > Integer.MAX_VALUE)
-                        throw new IllegalArgumentException(
-                                "Артикул " + raw + " не помещается в int");
+                        throw new IllegalArgumentException("Артикул " + raw + " не помещается в int");
 
                     if (keyInUse.test((int) raw))
                         throw new IllegalArgumentException("Артикул " + raw + " уже используется");
@@ -146,15 +142,9 @@ public final class ProductDialog extends Dialog<Product> {
 
     private static Product parseResult(
             RadioButton productRadio, TextField itemNumberField, TextField nameField,
-                                       TextField categoryField,
-                                       TextField priceField,
-                                       TextField remainderField,
-                                       DatePicker startDatePicker,
-                                       TextField warrantyMonths,
-                                       TextField supplierField,
-                                       TextField countryField,
-                                       TextField discountField,
-                                       DatePicker mfgPicker) {
+            TextField categoryField, TextField priceField, TextField remainderField,
+            DatePicker startDatePicker, TextField warrantyMonths, TextField supplierField,
+            TextField countryField, TextField discountField, DatePicker mfgPicker) {
 
         long itemNumber = parseLong(itemNumberField, "Артикул");
         String name = nameField.getText();
@@ -162,11 +152,9 @@ public final class ProductDialog extends Dialog<Product> {
         long price = parseLong(priceField, "Цена");
         int remainder = parseInt(remainderField, "Остаток");
 
-        // --- поля v2 ---
         String supplier = supplierField.getText() == null ? "" : supplierField.getText().trim();
         String countryOfOrigin = countryField.getText() == null ? "" : countryField.getText().trim();
 
-        // --- поля v3 ---
         int discountPercent;
         String rawDiscount = discountField.getText() == null ? "" : discountField.getText().trim();
         if (rawDiscount.isEmpty())
@@ -175,10 +163,9 @@ public final class ProductDialog extends Dialog<Product> {
             discountPercent = parseInt(discountField, "Скидка %");
 
         LocalDate manufactureDate = mfgPicker.getValue();
-        if (manufactureDate == null) {
+        if (manufactureDate == null)
             manufactureDate = Product.DEFAULT_MANUFACTURE_DATE;
-        }
-        // --- сборка сущности ---
+
         if (productRadio.isSelected())
             return new Product(itemNumber, name, category, price, remainder,
                     supplier, countryOfOrigin, discountPercent, manufactureDate);
@@ -204,8 +191,7 @@ public final class ProductDialog extends Dialog<Product> {
             throw new IllegalArgumentException(
                     "Поле " + label + " должно быть целым числом (не число: \"" + text + "\")");
         } catch (ArithmeticException ex) {
-            throw new IllegalArgumentException(
-                    "Поле " + label + " = " + text + " слишком велико");
+            throw new IllegalArgumentException("Поле " + label + " = " + text + " слишком велико");
         }
     }
 

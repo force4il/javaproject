@@ -112,7 +112,6 @@ public final class ProductView {
 
 
     private ScrollPane buildToolbar() {
-        // Первая строчка панели
         FlowPane actionsRow = new FlowPane(TOOLBAR_HGAP, TOOLBAR_VGAP);
         actionsRow.setAlignment(Pos.CENTER_LEFT);
         actionsRow.getChildren().addAll(
@@ -122,7 +121,6 @@ public final class ProductView {
                 benchButton, statsButton, raceDemoButton, clearButton
         );
 
-        // Вторая строчка панели
         FlowPane searchRow = new FlowPane(TOOLBAR_HGAP, TOOLBAR_VGAP);
         searchRow.setAlignment(Pos.CENTER_LEFT);
         searchRow.getChildren().addAll(

@@ -18,8 +18,7 @@ public final class FormatBenchmarkDialog {
 
     public static void show(Stage owner, List<CatalogItem> items) {
         if (items.isEmpty()) {
-            Dialogs.showInfo(owner, "Сравнение форматов",
-                    "Сначала добавьте или загрузите товары");
+            Dialogs.showInfo(owner, "Сравнение форматов", "Сначала добавьте или загрузите товары");
             return;
         }
 
@@ -37,8 +36,7 @@ public final class FormatBenchmarkDialog {
         results.setEditable(false);
         results.setPrefSize(520, 230);
 
-        javafx.scene.layout.VBox content = new javafx.scene.layout.VBox(
-                        10, status, progress, results);
+        javafx.scene.layout.VBox content = new javafx.scene.layout.VBox(10, status, progress, results);
 
         content.setPadding(new javafx.geometry.Insets(15));
 

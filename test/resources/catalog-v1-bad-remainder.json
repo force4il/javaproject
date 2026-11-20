@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "items": [
+    {
+      "type": "Product",
+      "itemNumber": 10,
+      "productName": "Broken",
+      "category": "Electronics",
+      "price": 100,
+      "remainder": 500
+    }
+  ]
+}

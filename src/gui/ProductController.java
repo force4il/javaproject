@@ -29,10 +29,10 @@ public final class ProductController {
 
     private static final String TITLE_LOAD = "Загрузка";
     private static final String TITLE_SAVE = "Сохранение";
-    private static final String TITLE_ADD  = "Добавление";
+    private static final String TITLE_ADD = "Добавление";
     private static final String TITLE_EDIT = "Изменение";
     private static final String TITLE_DEL = "Удаление";
-    private static final String TITLE_GEN  = "Генерация";
+    private static final String TITLE_GEN = "Генерация";
     private static final String TITLE_SEARCH = "Поиск";
     private static final String TITLE_RANGE = "Диапазон";
     private static final String TITLE_CONFIRM = "Очистка дерева";
@@ -49,7 +49,7 @@ public final class ProductController {
 
     public ProductController(Stage stage) {
         this.stage = stage;
-        this.ops   = new OperationSupport(stage, view);
+        this.ops = new OperationSupport(stage, view);
         ops.setOnIdle(() -> {
             refreshSelectionButtons();
             refreshExportButton();
@@ -104,10 +104,8 @@ public final class ProductController {
 
                 currentFile = path;
                 refreshAll();
-                String mig = migrate
-                        ? " (миграция v" + result.sourceVersion()
-                        + " → v" + CatalogVersions.CURRENT + ")"
-                        : "";
+                String mig = migrate ? " (миграция v" + result.sourceVersion()
+                        + " → v" + CatalogVersions.CURRENT + ")" : "";
                 ops.setStatus("Загружено: " + path.getFileName() + mig
                         + " (пропущено строк: " + result.skippedRows().size() + ")");
                 if (!result.skippedRows().isEmpty())
@@ -120,9 +118,13 @@ public final class ProductController {
     }
     private void onSave() {
         File file = InputDialogs.chooseSaveCsv(stage, currentFile);
-        if (file == null) return;
+        if (file == null)
+            return;
+
         Integer version = InputDialogs.chooseVersion(stage, CsvSchema.CURRENT_VERSION, "Версия CSV");
-        if (version == null) return;
+        if (version == null)
+            return;
+
         if (version < CsvSchema.CURRENT_VERSION) {
             String loss = CatalogVersions.lossFromTo(CsvSchema.CURRENT_VERSION, version);
             if (!Dialogs.confirm(stage, "Потеря данных",
@@ -163,14 +165,21 @@ public final class ProductController {
         FileChooser chooser = serialChooser("Экспорт каталога");
         chooser.setInitialFileName("catalog.json");
         File file = chooser.showSaveDialog(stage);
-        if (file == null) return;
+        if (file == null)
+            return;
 
         final Serializer<List<CatalogItem>> serializer;
-        try { serializer = serializerFor(file); }
-        catch (IllegalArgumentException ex) { Dialogs.showError(stage, "Экспорт", ex.getMessage()); return; }
+        try {
+            serializer = serializerFor(file);
+        } catch (IllegalArgumentException ex) {
+            Dialogs.showError(stage, "Экспорт", ex.getMessage());
+            return;
+        }
 
         Integer version = InputDialogs.chooseVersion(stage, serializer.currentVersion(), "Версия экспорта");
-        if (version == null) return;
+        if (version == null)
+            return;
+
         if (version < serializer.currentVersion()) {
             String loss = serializer.describeDowngradeLoss(version);
             if (!Dialogs.confirm(stage, "Потеря данных",
@@ -221,8 +230,7 @@ public final class ProductController {
                         refreshAll();
                         String mig = migrate
                                 ? " (миграция v" + result.sourceVersion()
-                                + " → v" + result.targetVersion() + ")"
-                                : "";
+                                + " → v" + result.targetVersion() + ")" : "";
                         ops.setStatus("Импортировано: " + result.data().size() + " записей" + mig);
                     } catch (TreeOperationException ex) {
                         Dialogs.showTreeError(stage, "Импорт", ex);
