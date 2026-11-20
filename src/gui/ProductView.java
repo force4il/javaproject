@@ -92,6 +92,8 @@ public final class ProductView {
         tv.getColumns().add(column("Гарантия до", ProductView::warrantyEndOf));
         tv.getColumns().add(column("Поставщик", i -> i instanceof model.Product p ? p.getSupplier() : ""));
         tv.getColumns().add(column("Скидка, %", i -> i instanceof model.Product p ? String.valueOf(p.getDiscountPercent()) : ""));
+        tv.getColumns().add(column("Дата изготовления", i -> i instanceof model.Product p && p.getManufactureDate() != null
+                        ? p.getManufactureDate().toString() : ""));
         return tv;
     }
 

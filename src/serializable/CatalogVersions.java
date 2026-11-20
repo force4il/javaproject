@@ -27,10 +27,10 @@ public final class CatalogVersions {
 
         StringBuilder sb = new StringBuilder();
         if (from >= V2 && to < V2)
-            sb.append("• supplier (поставщик)\n• countryOfOrigin (страна происхождения)\n");
+            sb.append(" supplier (поставщик)\n• countryOfOrigin (страна происхождения)\n");
 
         if (from >= V3 && to < V3)
-            sb.append("• discountPercent (скидка, %)\n• manufactureDate (дата изготовления)\n");
+            sb.append(" discountPercent (скидка, %)\n• manufactureDate (дата изготовления)\n");
 
         return sb.toString();
     }
