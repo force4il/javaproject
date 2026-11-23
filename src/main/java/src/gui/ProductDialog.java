@@ -1,0 +1,214 @@
+package src.gui;
+
+import javafx.event.ActionEvent;
+import javafx.geometry.Insets;
+import javafx.scene.control.*;
+import javafx.scene.layout.GridPane;
+import javafx.scene.layout.HBox;
+import javafx.stage.Window;
+
+import java.math.BigInteger;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.function.Predicate;
+
+import src.model.Product;
+import src.model.ProductWithWarranty;
+
+public final class ProductDialog extends Dialog<Product> {
+
+    private static final String TYPE_PRODUCT = "Product";
+    private static final String TYPE_WARRANTY = "Warranty";
+
+    private Product lastResult;
+    public ProductDialog(Window owner, Product existing, Predicate<Integer> keyInUse) {
+        initOwner(owner);
+        setTitle(existing == null ? "Добавить товар" : "Редактировать товар");
+        setResizable(true);
+
+        boolean editing = existing != null;
+        boolean warranty = existing instanceof ProductWithWarranty;
+
+        ToggleGroup typeGroup = new ToggleGroup();
+        RadioButton productRadio = new RadioButton(TYPE_PRODUCT);
+        RadioButton warrantyRadio = new RadioButton(TYPE_WARRANTY);
+        productRadio.setToggleGroup(typeGroup);
+        warrantyRadio.setToggleGroup(typeGroup);
+        (warranty ? warrantyRadio : productRadio).setSelected(true);
+        productRadio.setDisable(editing);
+        warrantyRadio.setDisable(editing);
+
+        TextField itemNumberField = new TextField(existing == null ? "" : String.valueOf(existing.getItemNumberRaw()));
+        TextField nameField = new TextField(existing == null ? "" : existing.getProductName());
+        TextField categoryField = new TextField(existing == null ? "" : existing.getCategory());
+        TextField priceField = new TextField(existing == null ? "" : String.valueOf(existing.getPriceRaw()));
+        TextField remainderField = new TextField(existing == null ? "" : String.valueOf(existing.getRemainder()));
+        TextField supplierField = new TextField(existing == null ? "" : existing.getSupplier());
+        TextField countryField  = new TextField(existing == null ? "" : existing.getCountryOfOrigin());
+        TextField discountField = new TextField(existing == null ? "" : String.valueOf(existing.getDiscountPercent()));
+        DatePicker mfgPicker = new DatePicker(existing == null ? null : existing.getManufactureDate());
+
+        DatePicker startDatePicker = new DatePicker();
+        TextField warrantyMonths = new TextField();
+        if (existing instanceof ProductWithWarranty pw) {
+            startDatePicker.setValue(pw.getStartOfWarranty());
+            warrantyMonths.setText(String.valueOf(pw.getWarrantyMonths()));
+        }
+
+        startDatePicker.disableProperty().bind(warrantyRadio.selectedProperty().not());
+        warrantyMonths.disableProperty().bind(warrantyRadio.selectedProperty().not());
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(8);
+        grid.setPadding(new Insets(15));
+
+        int row = 0;
+
+        grid.add(new Label("Тип:"), 0, row);
+        grid.add(new HBox(10, productRadio, warrantyRadio), 1, row++);
+
+        grid.add(new Label("Артикул:"), 0, row);
+        grid.add(itemNumberField, 1, row++);
+
+        grid.add(new Label("Название:"), 0, row);
+        grid.add(nameField, 1, row++);
+
+        grid.add(new Label("Категория:"), 0, row);
+        grid.add(categoryField, 1, row++);
+
+        grid.add(new Label("Цена:"), 0, row);
+        grid.add(priceField, 1, row++);
+
+        grid.add(new Label("Остаток:"), 0, row);
+        grid.add(remainderField, 1, row++);
+
+        grid.add(new Label("Начало гарантии:"), 0, row);
+        grid.add(startDatePicker, 1, row++);
+
+        grid.add(new Label("Гарантия (мес):"), 0, row);
+        grid.add(warrantyMonths, 1, row++);
+
+        grid.add(new Label("Поставщик:"), 0, row);
+        grid.add(supplierField, 1, row++);
+
+        grid.add(new Label("Страна:"), 0, row);
+        grid.add(countryField, 1, row++);
+
+        grid.add(new Label("Скидка (%):"), 0, row);
+        grid.add(discountField, 1, row++);
+
+        grid.add(new Label("Дата изгот.:"), 0, row);
+        grid.add(mfgPicker, 1, row++);
+
+        getDialogPane().setContent(grid);
+
+        ButtonType okType = new ButtonType("OK", ButtonBar.ButtonData.OK_DONE);
+        getDialogPane().getButtonTypes().addAll(okType, ButtonType.CANCEL);
+
+        Button okButton = (Button) getDialogPane().lookupButton(okType);
+        okButton.addEventFilter(ActionEvent.ACTION, evt -> {
+            try {
+                Product candidate = parseResult(productRadio,
+                        itemNumberField, nameField, categoryField,
+                        priceField, remainderField,
+                        startDatePicker, warrantyMonths,
+                        supplierField, countryField,
+                        discountField, mfgPicker);
+
+                boolean sameAsExisting = existing != null && candidate.getItemNumberRaw() == existing.getItemNumberRaw();
+                if (!sameAsExisting && keyInUse != null) {
+                    long raw = candidate.getItemNumberRaw();
+                    if (raw < Integer.MIN_VALUE || raw > Integer.MAX_VALUE)
+                        throw new IllegalArgumentException("Артикул " + raw + " не помещается в int");
+
+                    if (keyInUse.test((int) raw))
+                        throw new IllegalArgumentException("Артикул " + raw + " уже используется");
+                }
+
+                List<String> errors = candidate.validate();
+                if (!errors.isEmpty())
+                    throw new IllegalArgumentException(String.join("\n", errors));
+
+                lastResult = candidate;
+            } catch (IllegalArgumentException ex) {
+                Dialogs.showError(getOwner(), "Ошибка ввода", ex.getMessage());
+                evt.consume();
+            }
+        });
+
+        setResultConverter(bt -> bt == okType ? lastResult : null);
+    }
+
+    private static Product parseResult(
+            RadioButton productRadio, TextField itemNumberField, TextField nameField,
+            TextField categoryField, TextField priceField, TextField remainderField,
+            DatePicker startDatePicker, TextField warrantyMonths, TextField supplierField,
+            TextField countryField, TextField discountField, DatePicker mfgPicker) {
+
+        long itemNumber = parseLong(itemNumberField, "Артикул");
+        String name = nameField.getText();
+        String category = categoryField.getText();
+        long price = parseLong(priceField, "Цена");
+        int remainder = parseInt(remainderField, "Остаток");
+
+        String supplier = supplierField.getText() == null ? "" : supplierField.getText().trim();
+        String countryOfOrigin = countryField.getText() == null ? "" : countryField.getText().trim();
+
+        int discountPercent;
+        String rawDiscount = discountField.getText() == null ? "" : discountField.getText().trim();
+        if (rawDiscount.isEmpty())
+            discountPercent = 0;
+        else
+            discountPercent = parseInt(discountField, "Скидка %");
+
+        LocalDate manufactureDate = mfgPicker.getValue();
+        if (manufactureDate == null)
+            manufactureDate = Product.DEFAULT_MANUFACTURE_DATE;
+
+        if (productRadio.isSelected())
+            return new Product(itemNumber, name, category, price, remainder,
+                    supplier, countryOfOrigin, discountPercent, manufactureDate);
+
+        LocalDate start = startDatePicker.getValue();
+        if (start == null)
+            throw new IllegalArgumentException("Не указана дата начала гарантии");
+
+        int months = parseInt(warrantyMonths, "Гарантия (мес)");
+
+        return new ProductWithWarranty(itemNumber, name, category, price, remainder,
+                start, months, supplier, countryOfOrigin, discountPercent, manufactureDate);
+    }
+
+    private static long parseLong(TextField field, String label) {
+        String text = field.getText() == null ? "" : field.getText().trim();
+        if (text.isEmpty())
+            throw new IllegalArgumentException("Поле " + label + " не заполнено");
+
+        try {
+            return new java.math.BigInteger(text).longValueExact();
+        } catch (NumberFormatException ex) {
+            throw new IllegalArgumentException(
+                    "Поле " + label + " должно быть целым числом (не число: \"" + text + "\")");
+        } catch (ArithmeticException ex) {
+            throw new IllegalArgumentException("Поле " + label + " = " + text + " слишком велико");
+        }
+    }
+
+    private static int parseInt(TextField field, String label) {
+        String text = field.getText() == null ? "" : field.getText().trim();
+        if (text.isEmpty())
+            throw new IllegalArgumentException("Поле " + label + " не заполнено");
+
+        try {
+            return new java.math.BigInteger(text).intValueExact();
+        } catch (NumberFormatException ex) {
+            throw new IllegalArgumentException(
+                    "Поле " + label + " должно быть целым числом (не число: \"" + text + "\")");
+        } catch (ArithmeticException ex) {
+            throw new IllegalArgumentException(
+                    "Поле " + label + " = " + text + " не помещается в int ("
+                            + Integer.MIN_VALUE + ".." + Integer.MAX_VALUE + ")");
+        }
+    }
+}

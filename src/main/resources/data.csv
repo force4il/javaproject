@@ -1,0 +1,20 @@
+Product;101;Ноутбук Lenovo IdeaPad;Электроника;54990;12
+Product;102;Мышь Logitech M185;Аксессуары;1290;48
+Warranty;103;Монитор Dell P2422H;Электроника;24990;7;2024-06-15;24
+Warranty;104;Клавиатура Logitech K380;Аксессуары;3990;15;2025-01-10;12
+Discontinued;105;Факс Panasonic KX-FT987;Офис;8990;0
+Product;106;Веб-камера Logitech C920;Аксессуары;7490;3
+Warranty;107;Принтер HP LaserJet M110;Офис;18990;2;2023-11-20;36
+Discontinued;108;Модем USRobotics 56K;Сетевое;2190;0
+Product;109;SSD Samsung 980 1TB;Комплектующие;8990;25
+Warranty;110;ИБП APC Back-UPS 650;Питание;7990;9;2025-03-01;24
+Product;111;Кулер Noctua NH-U12S;Комплектующие;6990;6
+Product;112;Корпус Fractal Design Core 1000;Комплектующие;4590;4
+Warranty;113;Картридж HP CF248A;Офис;3290;30;2025-02-14;6
+Discontinued;114;Дисковод FDD 3.5;Ретро;1990;1
+Product;115;Монитор LG 27UL500;Электроника;27990;5
+Warranty;116;Сетевой фильтр Pilot-S;Питание;1590;22;2025-04-05;12
+Product;117;Коврик для мыши A4Tech;Аксессуары;590;80
+Product;118;Термопаста Arctic MX-4;Комплектующие;890;45
+Warranty;119;Роутер TP-Link Archer AX23;Сетевое;5490;11;2024-12-01;24
+Discontinued;120;Плоттер HP DesignJet 500;Офис;45900;0

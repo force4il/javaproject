@@ -1,0 +1,62 @@
+{
+  "schema_version" : 2,
+  "items" : [ {
+    "type" : "Product",
+    "itemNumber" : 1000,
+    "productName" : "Mouse",
+    "category" : "Accessourie",
+    "price" : 5000,
+    "remainder" : 24,
+    "supplier" : "Logitech",
+    "countryOfOrigin" : "CN"
+  }, {
+    "type" : "Product",
+    "itemNumber" : 1001,
+    "productName" : "Laptop",
+    "category" : "Electronics",
+    "price" : 85000,
+    "remainder" : 12,
+    "supplier" : "Lenovo",
+    "countryOfOrigin" : "CN"
+  }, {
+    "type" : "Product",
+    "itemNumber" : 1002,
+    "productName" : "Phone",
+    "category" : "Electronics",
+    "price" : 52000,
+    "remainder" : 25,
+    "supplier" : "Samsung",
+    "countryOfOrigin" : "KR"
+  }, {
+    "type" : "Product",
+    "itemNumber" : 1003,
+    "productName" : "Monitor",
+    "category" : "Electronics",
+    "price" : 23000,
+    "remainder" : 18,
+    "supplier" : "LG",
+    "countryOfOrigin" : "KR"
+  }, {
+    "type" : "Warranty",
+    "itemNumber" : 1004,
+    "productName" : "Keyboard",
+    "category" : "Accessorie",
+    "price" : 2500,
+    "remainder" : 9,
+    "startOfWarranty" : "2026-11-13",
+    "warrantyMonths" : 13,
+    "supplier" : "Logitech",
+    "countryOfOrigin" : "CN"
+  }, {
+    "type" : "Warranty",
+    "itemNumber" : 1005,
+    "productName" : "Printer",
+    "category" : "Office",
+    "price" : 10000,
+    "remainder" : 20,
+    "startOfWarranty" : "2026-11-13",
+    "warrantyMonths" : 13,
+    "supplier" : "EPSON",
+    "countryOfOrigin" : "CN"
+  } ]
+}

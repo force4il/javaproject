@@ -1,0 +1,7 @@
+"#schema_version=3"
+"Product";"1000";"Mouse";"Accessourie";"5000";"24";"Logitech";"CN";"7";"2026-11-03"
+"Product";"1001";"Laptop";"Electronics";"85000";"12";"Lenovo";"CN";"10";"2026-11-11"
+"Product";"1002";"Phone";"Electronics";"52000";"25";"Samsung";"KR";"15";"2026-10-30"
+"Product";"1003";"Monitor";"Electronics";"23000";"18";"LG";"KR";"5";"2026-11-10"
+"Warranty";"1004";"Keyboard";"Accessorie";"2500";"9";"2026-11-13";"13";"Logitech";"CN";"18";"2026-11-15"
+"Warranty";"1005";"Printer";"Office";"10000";"20";"2026-11-13";"13";"EPSON";"CN";"18";"2026-11-15"
