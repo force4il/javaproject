@@ -10,6 +10,7 @@ import javafx.stage.Stage;
 import src.model.CatalogItem;
 import src.model.Editable;
 import src.model.Product;
+import src.server.CatalogService;
 import src.service.FileService;
 import src.service.GeneratorService;
 import src.service.TreeService;
@@ -39,16 +40,17 @@ public final class ProductController {
 
     private final Stage stage;
     private final ProductView view = new ProductView();
-    private final TreeService tree = new TreeService();
     private final FileService files = new FileService();
     private final SerializationService serialization = new SerializationService();
     private final GeneratorService generator = new GeneratorService();
     private final OperationSupport ops;
+    private final CatalogService catalogService;
 
     private Path currentFile;
 
-    public ProductController(Stage stage) {
+    public ProductController(Stage stage, CatalogService service) {
         this.stage = stage;
+        this.catalogService = service;
         this.ops = new OperationSupport(stage, view);
         ops.setOnIdle(() -> {
             refreshSelectionButtons();
@@ -61,7 +63,7 @@ public final class ProductController {
         view.saveButton.setOnAction(e -> onSave());
         view.importButton.setOnAction(e -> onImport());
         view.exportButton.setOnAction(e -> onExport());
-        view.compareFormatsButton.setOnAction(e -> FormatBenchmarkDialog.show(stage, new ArrayList<>(tree.all())));
+        view.compareFormatsButton.setOnAction(e -> FormatBenchmarkDialog.show(stage, new ArrayList<>(catalogService.findAll())));
         view.addButton.setOnAction(e -> onAdd());
         view.editButton.setOnAction(e -> onEdit());
         view.delButton.setOnAction(e -> onDelete());
@@ -84,7 +86,7 @@ public final class ProductController {
         if (file == null)
             return;
 
-        if (!tree.isEmpty() && !Dialogs.confirm(stage, TITLE_LOAD, "Текущее дерево будет очищено. Продолжить?"))
+        if (!catalogService.isEmpty() && !Dialogs.confirm(stage, TITLE_LOAD, "Текущее дерево будет очищено. Продолжить?"))
             return;
 
         Path path = file.toPath();
@@ -100,7 +102,7 @@ public final class ProductController {
                     ops.setStatus("Загрузка отменена");
                     return;
                 }
-                tree.replaceAll(result.items());
+                catalogService.replaceAll(result.items());
 
                 currentFile = path;
                 refreshAll();
@@ -132,7 +134,7 @@ public final class ProductController {
                             + loss + "\nПродолжить?")) return;
         }
         Path path = file.toPath();
-        List<CatalogItem> snapshot = new ArrayList<>(tree.all());
+        List<CatalogItem> snapshot = new ArrayList<>(catalogService.findAll());
         ops.run(files.saveTask(snapshot, path, version), "Сохранение…", ignored -> {
             currentFile = path;
             ops.setStatus("Сохранено: " + path.getFileName() + " (v" + version + ")");
@@ -187,7 +189,7 @@ public final class ProductController {
                 return;
         }
 
-        var snapshot = new ArrayList<>(tree.all());
+        var snapshot = new ArrayList<>(catalogService.findAll());
         ops.run(serialization.saveTask(serializer, snapshot, file.toPath(), version), "Экспорт…",
                 ignored -> ops.setStatus("Экспортировано: " + file.getName() + " (v" + version + ")"),
                 "Экспорт");
@@ -209,13 +211,13 @@ public final class ProductController {
         ops.run(serialization.loadTask(serializer, file.toPath()), "Импорт…",
                 result -> {
                     boolean migrate = result.sourceVersion() != result.targetVersion();
-                    if (!tree.isEmpty() || migrate) {
+                    if (!catalogService.isEmpty() || migrate) {
                         StringBuilder msg = new StringBuilder();
                         msg.append("Файл: ").append(file.getName()).append("\n")
                                 .append("Формат: ").append(serializer.format()).append("\n")
                                 .append("Версия в файле: v").append(result.sourceVersion()).append("\n")
                                 .append("Записей: ").append(result.data().size()).append("\n\n");
-                        if (!tree.isEmpty())
+                        if (!catalogService.isEmpty())
                             msg.append("Текущее дерево будет заменено.\n");
                         if (migrate)
                             msg.append("Мигрировать до версии ")
@@ -226,7 +228,7 @@ public final class ProductController {
                         }
                     }
                     try {
-                        tree.replaceAll(result.data());
+                        catalogService.replaceAll(result.data());
                         refreshAll();
                         String mig = migrate
                                 ? " (миграция v" + result.sourceVersion()
@@ -242,7 +244,7 @@ public final class ProductController {
         ProductDialog d = new ProductDialog(stage, null, this::keyExists);
         d.showAndWait().ifPresent(p -> {
             try {
-                boolean added = tree.insertIfAbsent(p);
+                boolean added = catalogService.createIfAbsent(p);
                 refreshAll();
                 if (added)
                     ops.setStatus("Добавлено: " + p.getItemNumber());
@@ -255,11 +257,7 @@ public final class ProductController {
     }
 
     private boolean keyExists(int key) {
-        try {
-            return tree.search(key) != null;
-        } catch (TreeOperationException e) {
-            return false;
-        }
+        return catalogService.findOrNull(key) != null;
     }
 
     private void onEdit() {
@@ -270,7 +268,7 @@ public final class ProductController {
         ProductDialog d = new ProductDialog(stage, existing, this::keyExists);
         d.showAndWait().ifPresent(updated -> {
             try {
-                tree.replace(existing.getItemNumber(), updated);
+                catalogService.replace(existing.getItemNumber(), updated);
                 refreshAll();
                 ops.setStatus("Изменено: " + updated.getItemNumber());
             } catch (TreeOperationException ex) {
@@ -285,7 +283,7 @@ public final class ProductController {
             return;
 
         try {
-            tree.deleteIfExists(sel.getItemNumber());
+            catalogService.deleteIfExists(sel.getItemNumber());
             refreshAll();
             ops.setStatus("Удалено: " + sel.getItemNumber());
         } catch (TreeOperationException ex) {
@@ -307,12 +305,7 @@ public final class ProductController {
             return;
         }
         CatalogItem found;
-        try {
-            found = tree.search(key);
-        } catch (TreeOperationException ex) {
-            Dialogs.showTreeError(stage, TITLE_SEARCH, ex);
-            return;
-        }
+        found = catalogService.findOrNull(key);
         view.visualizer.redraw();
         updateStats();
         if (found == null) {
@@ -342,12 +335,12 @@ public final class ProductController {
             return;
         }
         try {
-            List<CatalogItem> res = tree.range(from, to);
+            List<CatalogItem> res = catalogService.range(from, to);
             view.items.setAll(res);
             view.visualizer.redraw();
             updateStats();
             ops.setStatus("Диапазон [" + from + ".." + to + "]: " + res.size()
-                    + " (в дереве " + tree.size() + ")");
+                    + " (в дереве " + catalogService.size() + ")");
         } catch (TreeOperationException ex) {
             Dialogs.showTreeError(stage, TITLE_RANGE, ex);
         }
@@ -359,7 +352,7 @@ public final class ProductController {
             return;
 
         long seed = System.nanoTime();
-        final List<CatalogItem> initialItems = new ArrayList<>(tree.all());
+        final List<CatalogItem> initialItems = new ArrayList<>(catalogService.findAll());
         Task<List<CatalogItem>> task = new Task<>() {
             @Override
             protected List<CatalogItem> call() throws Exception {
@@ -379,7 +372,7 @@ public final class ProductController {
 
         ops.run(task, "Генерация…", resultList -> {
             try {
-                tree.replaceAll(resultList);
+                catalogService.replaceAll(resultList);
                 refreshAll();
                 ops.setStatus("Сгенерировано: " + count + " (seed=" + seed + ")");
             } catch (TreeOperationException ex) {
@@ -389,31 +382,31 @@ public final class ProductController {
     }
 
     private void onClear() {
-        if (tree.isEmpty())
+        if (catalogService.isEmpty())
             return;
 
         if (!Dialogs.confirm(stage, TITLE_CONFIRM, "Текущее дерево будет очищено. Продолжить?"))
             return;
 
-        tree.clear();
+        catalogService.clear();
         refreshAll();
         ops.setStatus("Очищено");
     }
 
     private void refreshAll() {
         refreshTable();
-        view.visualizer.setTree(tree.raw());
+        view.visualizer.setTree(catalogService.raw());
         updateStats();
         refreshExportButton();
     }
 
     private void refreshTable() {
-        view.items.setAll(tree.all());
+        view.items.setAll(catalogService.findAll());
     }
 
     private void showNodeStats() {
         try {
-            BTree.FillStats s = tree.stats();
+            BTree.FillStats s = catalogService.stats();
             Alert alert = new Alert(Alert.AlertType.INFORMATION);
             alert.initOwner(stage);
             alert.setTitle("Статистика B-дерева");
@@ -430,7 +423,7 @@ public final class ProductController {
     }
 
     private void updateStats() {
-        BTree.FillStats s = tree.stats();
+        BTree.FillStats s = catalogService.stats();
         ops.setStats(String.format("узлов=%d, листьев=%d, ключей=%d, высота=%d, средн.заполн.=%.2f, min=%d, max=%d",
                 s.nodes(), s.leaves(), s.totalKeys(), s.height(), s.avgFill(), s.minKeys(), s.maxKeys()));
     }
@@ -442,6 +435,6 @@ public final class ProductController {
     }
 
     private void refreshExportButton() {
-        view.exportButton.setDisable(tree.isEmpty());
+        view.exportButton.setDisable(catalogService.isEmpty());
     }
 }
