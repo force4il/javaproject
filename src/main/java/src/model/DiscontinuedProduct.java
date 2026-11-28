@@ -2,7 +2,7 @@ package src.model;
 
 import java.io.Serial;
 
-/** read-only класс. */
+/** read-only класс */
 public record DiscontinuedProduct(long itemNumber, String productName, String category,
                                   long price, int remainder) implements CatalogItem {
 

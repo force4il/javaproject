@@ -1,7 +1,7 @@
 package src.service;
 
 import src.exceptions.ErrorCode;
-import src.exceptions.TreeOperationException;
+import src.exceptions.tree.TreeOperationException;
 import src.tree.BTree;
 
 import java.util.concurrent.CountDownLatch;

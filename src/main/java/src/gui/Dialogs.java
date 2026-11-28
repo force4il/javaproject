@@ -2,8 +2,8 @@ package src.gui;
 
 import src.csv.CsvLoader;
 import src.exceptions.AppException;
-import src.exceptions.CsvException;
-import src.exceptions.TreeException;
+import src.exceptions.csv.CsvException;
+import src.exceptions.tree.TreeException;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonType;
 import javafx.stage.Window;
@@ -36,13 +36,12 @@ public final class Dialogs {
 
     public static void showCsvError(Window owner, String action, CsvException e) {
         StringBuilder sb = new StringBuilder();
-        sb.append("Код ошибки: ").append(e.getCode()).append("\n\n")
-                .append(e.getMessage());
+        sb.append("Код ошибки: ").append(e.getCode()).append("\n\n").append(e.getMessage());
         Throwable cause = e.getCause();
-        if (cause != null) {
+        if (cause != null)
             sb.append("\n\nПричина: ").append(cause.getClass().getSimpleName())
                     .append(": ").append(cause.getMessage());
-        }
+
         showError(owner, action + " — ошибка CSV", sb.toString());
     }
 
@@ -57,16 +56,17 @@ public final class Dialogs {
     }
 
     public static void showSkipped(Window owner, List<CsvLoader.SkippedRow> skipped) {
-        StringBuilder sb = new StringBuilder("Пропущено строк: ")
-                .append(skipped.size()).append("\n\n");
+        StringBuilder sb = new StringBuilder("Пропущено строк: ").append(skipped.size()).append("\n\n");
         int shown = Math.min(MAX_SKIPPED_SHOWN, skipped.size());
         for (int i = 0; i < shown; i++) {
             CsvLoader.SkippedRow s = skipped.get(i);
             sb.append("Строка ").append(s.lineNumber()).append(": ")
                     .append(s.cause().getMessage()).append('\n');
         }
+
         if (skipped.size() > MAX_SKIPPED_SHOWN)
             sb.append("… и ещё ").append(skipped.size() - MAX_SKIPPED_SHOWN);
+
         showInfo(owner, "Пропущенные строки", sb.toString());
     }
 

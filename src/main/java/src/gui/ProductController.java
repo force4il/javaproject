@@ -2,7 +2,7 @@ package src.gui;
 
 import src.csv.CsvLoader;
 import src.csv.CsvSchema;
-import src.exceptions.TreeOperationException;
+import src.exceptions.tree.TreeOperationException;
 import javafx.concurrent.Task;
 import javafx.scene.control.Alert;
 import javafx.scene.layout.BorderPane;
@@ -10,7 +10,7 @@ import javafx.stage.Stage;
 import src.model.CatalogItem;
 import src.model.Editable;
 import src.model.Product;
-import src.server.CatalogService;
+import src.api.CatalogService;
 import src.service.FileService;
 import src.service.GeneratorService;
 import src.service.TreeService;
@@ -51,6 +51,7 @@ public final class ProductController {
     public ProductController(Stage stage, CatalogService service) {
         this.stage = stage;
         this.catalogService = service;
+        view.visualizer.setRenderLock(service.lock());
         this.ops = new OperationSupport(stage, view);
         ops.setOnIdle(() -> {
             refreshSelectionButtons();
@@ -74,6 +75,8 @@ public final class ProductController {
         view.clearButton.setOnAction(e -> onClear());
         view.rangeButton.setOnAction(e -> onRange());
         view.showAllBtn.setOnAction(e -> refreshTable());
+        view.showAllBtn.setText("Обновить / показать всё");
+        catalogService.onChange(() -> javafx.application.Platform.runLater(this::refreshAll));
         view.searchField.setOnAction(e -> onSearch());
 
         refreshExportButton();
@@ -304,9 +307,13 @@ public final class ProductController {
                             : "Артикул должен быть целым числом");
             return;
         }
+
         CatalogItem found;
-        found = catalogService.findOrNull(key);
-        view.visualizer.redraw();
+        synchronized (catalogService.lock()) {
+            found = catalogService.findOrNull(key);
+            view.visualizer.setTree(catalogService.raw());
+        }
+
         updateStats();
         if (found == null) {
             ops.setStatus("Не найдено: " + key);
@@ -335,9 +342,14 @@ public final class ProductController {
             return;
         }
         try {
-            List<CatalogItem> res = catalogService.range(from, to);
+            List<CatalogItem> res;
+            synchronized (catalogService.lock()) {
+                res = catalogService.range(from, to);
+                view.visualizer.setTree(catalogService.raw());
+            }
+
             view.items.setAll(res);
-            view.visualizer.redraw();
+
             updateStats();
             ops.setStatus("Диапазон [" + from + ".." + to + "]: " + res.size()
                     + " (в дереве " + catalogService.size() + ")");
@@ -394,10 +406,12 @@ public final class ProductController {
     }
 
     private void refreshAll() {
-        refreshTable();
-        view.visualizer.setTree(catalogService.raw());
-        updateStats();
-        refreshExportButton();
+        synchronized (catalogService.lock()) {
+            refreshTable();
+            view.visualizer.setTree(catalogService.raw());
+            updateStats();
+            refreshExportButton();
+        }
     }
 
     private void refreshTable() {

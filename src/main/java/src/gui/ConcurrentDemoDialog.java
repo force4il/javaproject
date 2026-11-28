@@ -2,7 +2,7 @@ package src.gui;
 
 import src.csv.CsvLoader;
 import src.exceptions.ErrorCode;
-import src.exceptions.TreeOperationException;
+import src.exceptions.tree.TreeOperationException;
 import javafx.concurrent.Task;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;

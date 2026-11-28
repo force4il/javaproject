@@ -2,7 +2,6 @@ package src.model;
 
 import java.util.Optional;
 
-/** Тип сущности в CSV */
 public enum EntityType {
     PRODUCT("Product"),
     WARRANTY("Warranty"),

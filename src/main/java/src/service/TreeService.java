@@ -1,8 +1,8 @@
 package src.service;
 
 import src.exceptions.ErrorCode;
-import src.exceptions.TreeOperationException;
-import src.exceptions.TreeStateException;
+import src.exceptions.tree.TreeOperationException;
+import src.exceptions.tree.TreeStateException;
 import src.model.CatalogItem;
 import src.tree.BTree;
 
@@ -11,18 +11,36 @@ import java.util.List;
 public final class TreeService {
 
     private BTree<CatalogItem> tree = new BTree<>();
-    public BTree<CatalogItem> raw() { return tree; }
-    public int  size() { return tree.size(); }
-    public boolean isEmpty() { return tree.isEmpty(); }
-    public void clear() { tree.clear(); }
-    public List<CatalogItem> all() { return tree.inOrder(); }
-    public BTree.FillStats stats() { return tree.stats(); }
 
-    public CatalogItem search(int key) throws TreeOperationException {
+    public synchronized BTree<CatalogItem> raw() {
+        return tree;
+    }
+
+    public synchronized int size() {
+        return tree.size();
+    }
+
+    public synchronized boolean isEmpty() {
+        return tree.isEmpty();
+    }
+
+    public synchronized void clear() {
+        tree.clear();
+    }
+
+    public synchronized List<CatalogItem> all() {
+        return tree.inOrder();
+    }
+
+    public synchronized BTree.FillStats stats() {
+        return tree.stats();
+    }
+
+    public synchronized CatalogItem search(int key) throws TreeOperationException {
         return tree.search(key);
     }
 
-    public boolean insertIfAbsent(CatalogItem item) throws TreeOperationException {
+    public synchronized boolean insertIfAbsent(CatalogItem item) throws TreeOperationException {
         try {
             tree.insert(item.getItemNumber(), item);
             return true;
@@ -34,15 +52,11 @@ public final class TreeService {
         }
     }
 
-
-    public void replaceAll(List<CatalogItem> items)
-            throws TreeOperationException {
-
+    public synchronized void replaceAll(List<CatalogItem> items) throws TreeOperationException {
         if (items == null)
             throw new IllegalArgumentException("Список товаров не может быть null");
 
         BTree<CatalogItem> replacement = new BTree<>();
-
         for (CatalogItem item : items) {
             if (item == null)
                 throw new IllegalArgumentException("Список содержит null");
@@ -54,8 +68,7 @@ public final class TreeService {
             replacement.validateInvariants();
         } catch (TreeStateException ex) {
             throw new TreeOperationException(
-                    ErrorCode.TREE_STATE_CORRUPTED, "Не удалось построить дерево: " + ex.getMessage(),
-                    ex
+                    ErrorCode.TREE_STATE_CORRUPTED, "Не удалось построить дерево: " + ex.getMessage(), ex
             );
         }
 
@@ -63,7 +76,7 @@ public final class TreeService {
     }
 
 
-    public boolean deleteIfExists(int key) throws TreeOperationException {
+    public synchronized boolean deleteIfExists(int key) throws TreeOperationException {
         try {
             tree.delete(key);
             return true;
@@ -75,11 +88,11 @@ public final class TreeService {
         }
     }
 
-    public List<CatalogItem> range(int from, int to) throws TreeOperationException {
+    public synchronized List<CatalogItem> range(int from, int to) throws TreeOperationException {
         return tree.rangeScan(from, to);
     }
 
-    public void replace(int oldKey, CatalogItem updated) throws TreeOperationException {
+    public synchronized void replace(int oldKey, CatalogItem updated) throws TreeOperationException {
         int newKey = updated.getItemNumber();
         if (oldKey != newKey && tree.search(newKey) != null)
             throw new TreeOperationException(ErrorCode.TREE_DUPLICATE_KEY, "ключ " + newKey + " уже существует");

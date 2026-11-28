@@ -5,8 +5,8 @@ import javafx.scene.Scene;
 import javafx.stage.Stage;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ConfigurableApplicationContext;
-import src.server.CatalogApplication;
-import src.server.CatalogService;
+import src.api.CatalogApplication;
+import src.api.CatalogService;
 
 public class Gui extends Application {
 
@@ -15,6 +15,7 @@ public class Gui extends Application {
     @Override
     public void init() {
         springContext = new SpringApplicationBuilder(CatalogApplication.class)
+                .headless(false)
                 .run();
     }
 
@@ -30,7 +31,8 @@ public class Gui extends Application {
 
     @Override
     public void stop() {
-        springContext.close();
+        if (springContext != null)
+            springContext.close();
     }
 
     public static void main(String[] args) {

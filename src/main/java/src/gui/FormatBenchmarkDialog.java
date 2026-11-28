@@ -49,16 +49,14 @@ public final class FormatBenchmarkDialog {
                     updateMessage("Измерение BIN...");
                     updateProgress(0, 2);
 
-                    FormatBenchmark.Result bin =
-                            FormatBenchmark.measure(new BinaryCatalogSerializer(), items, folder);
+                    FormatBenchmark.Result bin = FormatBenchmark.measure(new BinaryCatalogSerializer(), items, folder);
                     if (isCancelled())
                         throw new CancellationException();
 
                     updateMessage("Измерение JSON...");
                     updateProgress(1, 2);
 
-                    FormatBenchmark.Result json =
-                            FormatBenchmark.measure(new JsonCatalogSerializer(), items, folder);
+                    FormatBenchmark.Result json = FormatBenchmark.measure(new JsonCatalogSerializer(), items, folder);
                     if (isCancelled())
                         throw new CancellationException();
 

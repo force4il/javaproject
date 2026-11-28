@@ -1,4 +1,7 @@
-package src.exceptions;
+package src.exceptions.csv;
+
+import src.exceptions.AppException;
+import src.exceptions.ErrorCode;
 
 import java.io.Serial;
 

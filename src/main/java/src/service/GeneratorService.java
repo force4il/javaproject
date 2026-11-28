@@ -1,6 +1,6 @@
 package src.service;
 
-import src.exceptions.TreeOperationException;
+import src.exceptions.tree.TreeOperationException;
 import src.model.CatalogItem;
 
 import java.util.HashSet;
@@ -8,7 +8,6 @@ import java.util.Random;
 import java.util.function.BooleanSupplier;
 import java.util.function.IntConsumer;
 
-/** Генерация набора CatalogItem в дерево */
 public final class GeneratorService {
 
     private static final int KEY_RANGE_FACTOR = 10;

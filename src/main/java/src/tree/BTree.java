@@ -1,8 +1,8 @@
 package src.tree;
 
 import src.exceptions.ErrorCode;
-import src.exceptions.TreeOperationException;
-import src.exceptions.TreeStateException;
+import src.exceptions.tree.TreeOperationException;
+import src.exceptions.tree.TreeStateException;
 
 import java.io.IOException;
 import java.io.ObjectInputStream;
@@ -87,7 +87,6 @@ public final class BTree<T> implements Serializable, Iterable<T> {
                             double avgFill, int minKeys, int maxKeys) {}
 
     public BTree() { this(DEFAULT_ORDER, DEBUG_INVARIANTS); }
-    public BTree(int order) { this(order, DEBUG_INVARIANTS); }
     public BTree(int order, boolean debugInvariants) {
         if (order < MIN_ORDER || (order & 1) != 0)
             throw new IllegalArgumentException(
@@ -101,17 +100,14 @@ public final class BTree<T> implements Serializable, Iterable<T> {
 
     private Node newNode() { return new Node(maxKeys, order); }
 
+    @Serial
     private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
         in.defaultReadObject();
         this.lastVisited = new ArrayList<>();
     }
 
-    public int getOrder() { return order; }
-    public int getMaxKeys() { return maxKeys; }
-    public int getMinKeys() { return minKeys; }
-
     public List<Node> getLastVisited() { return Collections.unmodifiableList(lastVisited); }
-    public int  size() { return size; }
+    public int size() { return size; }
     public Node getRoot() { return root; }
     public boolean isEmpty() { return size == 0; }
 

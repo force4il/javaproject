@@ -1,4 +1,4 @@
-package src.server;
+package src.api;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

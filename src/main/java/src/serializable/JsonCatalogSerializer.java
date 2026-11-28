@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.*;
 import com.fasterxml.jackson.databind.*;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.jspecify.annotations.NonNull;
 import src.exceptions.MigrationException;
 import src.model.*;
 
@@ -11,8 +12,7 @@ import java.io.*;
 import java.nio.file.*;
 import java.util.*;
 
-public final class JsonCatalogSerializer
-        implements Serializer<List<CatalogItem>> {
+public final class JsonCatalogSerializer implements Serializer<List<CatalogItem>> {
 
     private static final String FIELD_SCHEMA_VERSION = "schema_version";
     private static final String FIELD_ITEMS = "items";
@@ -53,9 +53,7 @@ public final class JsonCatalogSerializer
         Path target = file.toAbsolutePath();
         Path temp = Files.createTempFile(target.getParent(), ".catalog-", ".tmp");
         try {
-            try (OutputStream out = new FilterOutputStream(
-                    Files.newOutputStream(temp)
-            ) {
+            try (OutputStream out = new FilterOutputStream(Files.newOutputStream(temp)) {
                 @Override
                 public void write(int b) throws IOException {
                     CatalogCodec.checkCancelled();
@@ -63,7 +61,7 @@ public final class JsonCatalogSerializer
                 }
 
                 @Override
-                public void write(byte[] b, int off, int len) throws IOException {
+                public void write(byte @NonNull [] b, int off, int len) throws IOException {
                     CatalogCodec.checkCancelled();
                     this.out.write(b, off, len);
                 }
@@ -116,10 +114,9 @@ public final class JsonCatalogSerializer
 
     @Override
     public LoadResult<List<CatalogItem>> load(Path file) throws IOException {
-        if (Files.size(file) > CatalogCodec.MAX_FILE_BYTES) {
+        if (Files.size(file) > CatalogCodec.MAX_FILE_BYTES)
             throw new MigrationException(MigrationException.Reason.CORRUPTED,
                     "JSON превышает лимит 256 МиБ");
-        }
 
         List<CatalogItem> result = new ArrayList<>();
         Map<Integer, Integer> keyLines = new HashMap<>();

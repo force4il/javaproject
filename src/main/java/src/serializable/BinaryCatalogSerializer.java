@@ -192,6 +192,8 @@ public final class BinaryCatalogSerializer implements Serializer<List<CatalogIte
             throw ex;
         } catch (IOException ex) {
             throw ex;
+        } catch (CancellationException ex) {
+            throw ex;
         } catch (RuntimeException ex) {
             throw new MigrationException(MigrationException.Reason.CORRUPTED,
                     "BIN-файл повреждён: " + ex.getMessage(), ex);

@@ -2,6 +2,8 @@ package src.csv;
 
 import com.opencsv.CSVWriterBuilder;
 import src.exceptions.*;
+import src.exceptions.csv.CsvException;
+import src.exceptions.csv.CsvIOException;
 import src.model.*;
 
 import java.io.IOException;
@@ -10,10 +12,6 @@ import java.util.*;
 
 public final class CsvSave {
     private static final char DELIMITER = ';';
-
-    public static void save(List<CatalogItem> items, Path file) throws CsvException {
-        save(items, file, CsvSchema.CURRENT_VERSION);
-    }
 
     public static void save(List<CatalogItem> items, Path file, int targetVersion) throws CsvException {
         if (targetVersion < CsvSchema.MIN_VERSION || targetVersion > CsvSchema.CURRENT_VERSION)

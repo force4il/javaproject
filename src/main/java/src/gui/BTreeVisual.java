@@ -28,6 +28,11 @@ public final class BTreeVisual extends Pane {
     private final Canvas canvas = new Canvas();
     private BTree<?> tree;
     private Integer highlightedKey;
+    private Object renderLock = this;
+
+    public void setRenderLock(Object lock) {
+        renderLock = lock;
+    }
 
     public BTreeVisual() {
         getChildren().add(canvas);
@@ -59,6 +64,12 @@ public final class BTreeVisual extends Pane {
     }
 
     public void redraw() {
+        synchronized (renderLock) {
+            redrawLocked();
+        }
+    }
+
+    public void redrawLocked() {
         GraphicsContext g = canvas.getGraphicsContext2D();
         g.clearRect(0, 0, canvas.getWidth(), canvas.getHeight());
         g.setFill(Color.WHITE);

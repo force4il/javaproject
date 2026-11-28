@@ -12,7 +12,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-/** Замеры вставки и поиска для 1000, 10000 и 50000 товаров */
 public final class BenchmarkDialog {
     private static final int[] SIZES = {1000, 10000, 50000};
 

@@ -68,11 +68,14 @@ public final class FormatBenchmark {
         if (a.getRemainder() != b.getRemainder())
             return false;
 
-        if (a instanceof ProductWithWarranty pwA && b instanceof ProductWithWarranty pwB) {
+        if (a instanceof ProductWithWarranty pwA
+                && b instanceof ProductWithWarranty pwB) {
+
             if (!pwA.getStartOfWarranty().equals(pwB.getStartOfWarranty()))
                 return false;
 
-            return pwA.getWarrantyMonths() == pwB.getWarrantyMonths();
+            if (pwA.getWarrantyMonths() != pwB.getWarrantyMonths())
+                return false;
         }
 
         if (a instanceof Product pa && b instanceof Product pb) {

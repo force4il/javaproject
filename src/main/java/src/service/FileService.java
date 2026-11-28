@@ -2,11 +2,10 @@ package src.service;
 
 import src.csv.CsvLoader;
 import src.csv.CsvSave;
-import src.csv.CsvSchema;
-import src.exceptions.CsvException;
-import src.exceptions.CsvParseException;
+import src.exceptions.csv.CsvException;
+import src.exceptions.csv.CsvParseException;
 import src.exceptions.ErrorCode;
-import src.exceptions.TreeOperationException;
+import src.exceptions.tree.TreeOperationException;
 import javafx.concurrent.Task;
 import src.model.CatalogItem;
 

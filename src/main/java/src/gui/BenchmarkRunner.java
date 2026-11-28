@@ -1,6 +1,6 @@
 package src.gui;
 
-import src.exceptions.TreeOperationException;
+import src.exceptions.tree.TreeOperationException;
 import src.model.CatalogItem;
 import src.service.DataGenerator;
 import src.tree.BTree;
@@ -159,6 +159,7 @@ public final class BenchmarkRunner {
             } while (!used.add(k));
             keys[i] = k;
         }
+
         return keys;
     }
 

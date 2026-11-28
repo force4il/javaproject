@@ -1,8 +1,8 @@
 package src.gui;
 
 import src.exceptions.AppException;
-import src.exceptions.CsvException;
-import src.exceptions.TreeOperationException;
+import src.exceptions.csv.CsvException;
+import src.exceptions.tree.TreeOperationException;
 import javafx.concurrent.Task;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;

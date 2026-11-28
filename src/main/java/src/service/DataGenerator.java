@@ -8,7 +8,6 @@ import src.model.ProductWithWarranty;
 import java.time.LocalDate;
 import java.util.Random;
 
-/** Генератор тестовых CatalogItem */
 public final class DataGenerator {
 
     public static final int CATEGORIES = 5;

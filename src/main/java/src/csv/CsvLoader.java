@@ -2,6 +2,9 @@ package src.csv;
 
 import com.opencsv.*;
 import src.exceptions.*;
+import src.exceptions.csv.CsvException;
+import src.exceptions.csv.CsvIOException;
+import src.exceptions.csv.CsvParseException;
 import src.model.*;
 
 import java.io.IOException;
@@ -37,8 +40,10 @@ public final class CsvLoader {
                 long line = csvReader.getLinesRead();
                 if (!headerSeen) {
                     headerSeen = true;
+
                     if (parts.length == 1 && parts[0] != null) {
                         String h = parts[0];
+
                         if (h.startsWith("\uFEFF"))
                             h = h.substring(1);
 
@@ -49,9 +54,11 @@ public final class CsvLoader {
                                 throw new CsvParseException(ErrorCode.PARSE_ERROR,
                                         "Некорректный заголовок схемы: \"" + parts[0] + "\"", e);
                             }
+
                             if (sourceVersion < CsvSchema.MIN_VERSION || sourceVersion > CsvSchema.CURRENT_VERSION)
                                 throw new CsvParseException(ErrorCode.PARSE_ERROR,
                                         "Неподдерживаемая версия CSV: " + sourceVersion);
+
                             continue;
                         }
                     }
@@ -71,8 +78,7 @@ public final class CsvLoader {
         return new LoadResult(items, skipped, sourceVersion);
     }
 
-    private static void addItem(String[] parts, List<CatalogItem> items, int version)
-            throws CsvParseException {
+    private static void addItem(String[] parts, List<CatalogItem> items, int version) throws CsvParseException {
         if (parts.length == 0)
             return;
 
@@ -96,8 +102,7 @@ public final class CsvLoader {
         }
     }
 
-    private static CatalogRecord parseRecord(String[] p, EntityType type, int version)
-            throws CsvParseException {
+    private static CatalogRecord parseRecord(String[] p, EntityType type, int version) throws CsvParseException {
         expect(p, CsvSchema.expectedColumns(type, version), type.getCsvName() + " v" + version);
 
         CatalogRecord r = new CatalogRecord();
@@ -185,7 +190,9 @@ public final class CsvLoader {
 
     private static LocalDate parseDate(String v, String field) throws CsvParseException {
         checkEmptyOrNull(v, field);
-        try { return LocalDate.parse(v.trim()); }
+        try {
+            return LocalDate.parse(v.trim());
+        }
         catch (DateTimeParseException e) {
             throw new CsvParseException(ErrorCode.BAD_DATE, "поле '" + field + "' не дата: \"" + v + "\"", e);
         }
